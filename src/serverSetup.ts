@@ -199,6 +199,8 @@ function parseServerInstallOutput(str: string, scriptId: string): { [k: string]:
     return resultMap;
 }
 
+// Key changes needed in the generateBashInstallScript function:
+
 function generateBashInstallScript({ id, quality, version, commit, release, extensionIds, envVariables, useSocketPath, serverApplicationName, serverDataFolderName, serverDownloadUrlTemplate }: ServerInstallOptions) {
     const extensions = extensionIds.map(id => '--install-extension ' + id).join(' ');
     return `
@@ -297,17 +299,41 @@ case $ARCH in
         SERVER_ARCH="s390x"
         ;;
     *)
-        echo "Error architecture not supported: $ARCH"
-        print_install_results_and_exit 1
+        # Handle AIX special case where uname -m returns machine ID
+        if [[ $PLATFORM == "aix" ]]; then
+            AIX_ARCH="$(uname -p 2>/dev/null)"
+            case $AIX_ARCH in
+                powerpc)
+                    SERVER_ARCH="ppc64"
+                    ARCH="ppc64"
+                    ;;
+                *)
+                    echo "Error AIX architecture not supported: $AIX_ARCH"
+                    print_install_results_and_exit 1
+                    ;;
+            esac
+        else
+            echo "Error architecture not supported: $ARCH"
+            print_install_results_and_exit 1
+        fi
         ;;
 esac
 
-# https://www.freedesktop.org/software/systemd/man/os-release.html
-OS_RELEASE_ID="$(grep -i '^ID=' /etc/os-release 2>/dev/null | sed 's/^ID=//gi' | sed 's/"//g')"
-if [[ -z $OS_RELEASE_ID ]]; then
-    OS_RELEASE_ID="$(grep -i '^ID=' /usr/lib/os-release 2>/dev/null | sed 's/^ID=//gi' | sed 's/"//g')"
+# Add freeware path for AIX
+if [[ $PLATFORM == "aix" ]]; then
+    export PATH="/opt/freeware/bin:$PATH"
+fi
+
+# Handle OS release detection
+if [[ $PLATFORM == "aix" ]]; then
+    OS_RELEASE_ID="aix"
+else
+    OS_RELEASE_ID="$(grep -i '^ID=' /etc/os-release 2>/dev/null | sed 's/^[Ii][Dd]=//' | sed 's/"//g')"
     if [[ -z $OS_RELEASE_ID ]]; then
-        OS_RELEASE_ID="unknown"
+        OS_RELEASE_ID="$(grep -i '^ID=' /usr/lib/os-release 2>/dev/null | sed 's/^[Ii][Dd]=//' | sed 's/"//g')"
+        if [[ -z $OS_RELEASE_ID ]]; then
+            OS_RELEASE_ID="unknown"
+        fi
     fi
 fi
 
@@ -325,7 +351,15 @@ if [[ $OS_RELEASE_ID = alpine ]]; then
     PLATFORM=$OS_RELEASE_ID
 fi
 
-SERVER_DOWNLOAD_URL="$(echo "${serverDownloadUrlTemplate.replace(/\$\{/g, '\\${')}" | sed "s/\\\${quality}/$DISTRO_QUALITY/g" | sed "s/\\\${version}/$DISTRO_VERSION/g" | sed "s/\\\${commit}/$DISTRO_COMMIT/g" | sed "s/\\\${os}/$PLATFORM/g" | sed "s/\\\${arch}/$SERVER_ARCH/g" | sed "s/\\\${release}/$DISTRO_VSCODIUM_RELEASE/g")"
+# Handle different server types based on platform
+if [[ $PLATFORM == "aix" ]]; then
+    # For AIX, use VSCodium server with exact matching version
+    SERVER_DOWNLOAD_URL="https://github.com/VSCodium/vscodium/releases/download/1.101.24242/vscodium-reh-linux-x64-1.101.24242.tar.gz"
+    echo "Using VSCodium server version 1.101.24242 for AIX (exact match)..."
+else
+    # Original VSCodium URL for other platforms
+    SERVER_DOWNLOAD_URL="$(echo "${serverDownloadUrlTemplate.replace(/\$\{/g, '\\${')}" | sed "s/\\\${quality}/$DISTRO_QUALITY/g" | sed "s/\\\${version}/$DISTRO_VERSION/g" | sed "s/\\\${commit}/$DISTRO_COMMIT/g" | sed "s/\\\${os}/$PLATFORM/g" | sed "s/\\\${arch}/$SERVER_ARCH/g" | sed "s/\\\${release}/$DISTRO_VSCODIUM_RELEASE/g")"
+fi
 
 # Check if server script is already installed
 if [[ ! -f $SERVER_SCRIPT ]]; then
@@ -360,9 +394,52 @@ if [[ ! -f $SERVER_SCRIPT ]]; then
         print_install_results_and_exit 1
     fi
 
-    if [[ ! -f $SERVER_SCRIPT ]]; then
-        echo "Error server contents are corrupted"
-        print_install_results_and_exit 1
+    # Handle different server structures
+    if [[ $PLATFORM == "aix" ]]; then
+        # For VSCodium server on AIX, we still need our Node.js wrapper due to binary incompatibility
+        if [[ -f "$SERVER_SCRIPT" ]] || [[ -f "$SERVER_DIR/bin/codium-server" ]] || [[ -f "$SERVER_DIR/node" ]]; then
+            # Create wrapper script that uses system Node.js
+            cat > $SERVER_SCRIPT << 'AIXEOF'
+#!/bin/bash
+# VSCodium Server wrapper for AIX - Using System Node.js
+
+# Use the known Node.js location for AIX
+NODE_BIN="/opt/nodejs/bin/node"
+
+if [[ ! -x "$NODE_BIN" ]]; then
+    echo "ERROR: Node.js not found at $NODE_BIN"
+    exit 1
+fi
+
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Look for server main script in common locations
+SERVER_MAIN=""
+if [[ -f "$SCRIPT_DIR/../out/server-main.js" ]]; then
+    SERVER_MAIN="$SCRIPT_DIR/../out/server-main.js"
+elif [[ -f "$SCRIPT_DIR/../out/vs/server/main.js" ]]; then
+    SERVER_MAIN="$SCRIPT_DIR/../out/vs/server/main.js"
+else
+    echo "ERROR: Server main script not found"
+    exit 1
+fi
+
+exec "$NODE_BIN" "$SERVER_MAIN" "$@"
+AIXEOF
+            chmod +x $SERVER_SCRIPT
+            echo "Created VSCodium server wrapper for AIX"
+        else
+            echo "Error: VSCodium server components not found after extraction"
+            ls -la $SERVER_DIR/
+            print_install_results_and_exit 1
+        fi
+    else
+        # Original check for VSCodium
+        if [[ ! -f $SERVER_SCRIPT ]]; then
+            echo "Error server contents are corrupted"
+            print_install_results_and_exit 1
+        fi
     fi
 
     rm -f vscode-server.tar.gz
