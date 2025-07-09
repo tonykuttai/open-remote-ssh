@@ -35,6 +35,7 @@ export class ServerInstallError extends Error {
     }
 }
 
+// To do: needs to change
 const DEFAULT_DOWNLOAD_URL_TEMPLATE = 'https://github.com/VSCodium/vscodium/releases/download/${version}.${release}/vscodium-reh-${os}-${arch}-${version}.${release}.tar.gz';
 
 export async function installCodeServer(conn: SSHConnection, serverDownloadUrlTemplate: string | undefined, extensionIds: string[], envVariables: string[], platform: string | undefined, useSocketPath: boolean, logger: Log): Promise<ServerInstallResult> {
@@ -259,6 +260,9 @@ case $KERNEL in
     DragonFly)
         PLATFORM="dragonfly"
         ;;
+    AIX)
+        PLATFORM="aix"
+        ;;
     *)
         echo "Error platform not supported: $KERNEL"
         print_install_results_and_exit 1
@@ -279,6 +283,9 @@ case $ARCH in
         ;;
     ppc64le)
         SERVER_ARCH="ppc64le"
+        ;;
+    ppc64|powerpc64)
+        SERVER_ARCH="ppc64"
         ;;
     riscv64)
         SERVER_ARCH="riscv64"
@@ -323,7 +330,7 @@ SERVER_DOWNLOAD_URL="$(echo "${serverDownloadUrlTemplate.replace(/\$\{/g, '\\${'
 # Check if server script is already installed
 if [[ ! -f $SERVER_SCRIPT ]]; then
     case "$PLATFORM" in
-        darwin | linux | alpine )
+        darwin | linux | alpine | aix )
             ;;
         *)
             echo "Error '$PLATFORM' needs manual installation of remote extension host"
