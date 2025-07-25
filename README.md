@@ -14,7 +14,7 @@ You can connect to a running SSH server on the following platforms.
 - Windows 10+
 - FreeBSD 13 (Requires manual remote-extension-host installation)
 - DragonFlyBSD (Requires manual remote-extension-host installation)
-- AIX 7.1+ (Requires manual setup - see AIX Support section below)
+- **AIX 7.1+** (Requires manual setup - see AIX Support section below)
 
 ## Requirements
 
