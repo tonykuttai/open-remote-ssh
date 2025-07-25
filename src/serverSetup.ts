@@ -402,6 +402,378 @@ if [[ ! -f $SERVER_SCRIPT ]]; then
         print_install_results_and_exit 1
     fi
 
+    // Replace the AIX patch section in your generateBashInstallScript function with this:
+
+// After server extraction, apply AIX patches if needed
+if [[ $PLATFORM == "aix" && $AIX_PATCH_MODE == "true" ]]; then
+    echo "Applying AIX compatibility patches..."
+    
+    # Copy patch scripts to server directory
+    PATCH_SCRIPT_DIR="$SERVER_DIR/aix-patches"
+    mkdir -p "$PATCH_SCRIPT_DIR/modules"
+    mkdir -p "$PATCH_SCRIPT_DIR/utils"
+    
+    # Create aix-environment.sh
+    cat > "$PATCH_SCRIPT_DIR/utils/aix-environment.sh" << 'ENV_EOF'
+#!/bin/bash
+# aix-patches/utils/aix-environment.sh
+# AIX environment setup and validation
+
+# Setup AIX build environment
+setup_aix_environment() {
+    echo "Setting up AIX build environment..."
+    
+    # Set AIX-specific compiler flags for TLS compatibility
+    export CXXFLAGS="-ftls-model=global-dynamic -fPIC -pthread"
+    export CFLAGS="-ftls-model=global-dynamic -fPIC -pthread"
+    
+    # Ensure freeware tools are in PATH
+    export PATH="/opt/freeware/bin:/opt/nodejs/bin:$PATH"
+    
+    # Set npm configuration for AIX
+    export npm_config_target_arch=ppc64
+    export npm_config_target_platform=aix
+    export npm_config_build_from_source=true
+    export npm_config_cache=/tmp/.npm-aix
+    
+    # Create npm cache directory
+    mkdir -p /tmp/.npm-aix
+    
+    echo "Environment variables set:"
+    echo "  CXXFLAGS: $CXXFLAGS"
+    echo "  CFLAGS: $CFLAGS"
+    echo "  PATH: $PATH"
+    
+    # Validate build tools
+    if ! validate_build_tools; then
+        return 1
+    fi
+    
+    echo "[OK] AIX build environment ready"
+    return 0
+}
+
+# Validate required build tools
+validate_build_tools() {
+    local missing_tools=()
+    
+    # Check essential tools
+    command -v git >/dev/null 2>&1 || missing_tools+=("git")
+    command -v node >/dev/null 2>&1 || missing_tools+=("node")
+    command -v npm >/dev/null 2>&1 || missing_tools+=("npm")
+    command -v gcc >/dev/null 2>&1 || command -v xlc >/dev/null 2>&1 || missing_tools+=("gcc/xlc")
+    command -v make >/dev/null 2>&1 || command -v gmake >/dev/null 2>&1 || missing_tools+=("make/gmake")
+    command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 || missing_tools+=("python")
+    
+    if [[ \${#missing_tools[@]} -gt 0 ]]; then
+        echo "[ERROR] Missing required tools: \${missing_tools[*]}"
+        echo ""
+        echo "Please install missing tools:"
+        echo "  yum install git gcc gcc-c++ make python3"
+        echo "  # OR using IBM packages"
+        return 1
+    fi
+    
+    echo "Build tools detected:"
+    echo "  Node.js: $(node --version)"
+    echo "  npm: $(npm --version)"
+    echo "  gcc: $(gcc --version 2>/dev/null | head -1 || echo 'not found')"
+    echo "  Python: $(python3 --version 2>/dev/null || python --version 2>/dev/null || echo 'not found')"
+    
+    return 0
+}
+
+# Check if a module needs patching
+module_needs_patching() {
+    local module_path="$1"
+    local module_name="$2"
+    
+    # Check if module exists
+    if [[ ! -d "$module_path" ]]; then
+        echo "Module $module_name not found at $module_path"
+        return 1  # Module doesn't exist
+    fi
+    
+    # Check if already patched
+    if [[ -f "$module_path/.aix-patched" ]]; then
+        echo "Module $module_name already patched for AIX"
+        return 1  # Already patched
+    fi
+    
+    # Check for problematic .node files
+    local node_files=$(find "$module_path" -name "*.node" -type f 2>/dev/null)
+    if [[ -n "$node_files" ]]; then
+        # Check if any .node files are Linux binaries
+        for node_file in $node_files; do
+            if file "$node_file" 2>/dev/null | grep -q "ELF.*x86-64"; then
+                echo "Found Linux binary in $module_name: $node_file"
+                return 0  # Needs patching
+            fi
+        done
+    fi
+    
+    return 1  # Doesn't need patching
+}
+
+# Create backup of original module
+backup_module() {
+    local module_path="$1"
+    local backup_suffix="\${2:-linux-backup}"
+    
+    if [[ ! -d "$module_path.$backup_suffix" ]]; then
+        cp -r "$module_path" "$module_path.$backup_suffix"
+        echo "[OK] Backed up original module to $module_path.$backup_suffix"
+    else
+        echo "[INFO] Backup already exists: $module_path.$backup_suffix"
+    fi
+}
+
+# Mark module as patched
+mark_module_patched() {
+    local module_path="$1"
+    local module_name="$2"
+    
+    cat > "$module_path/.aix-patched" << PEOF
+AIX Patch Applied
+Module: $module_name
+Date: $(date)
+Platform: $(uname -s) $(uname -m)
+Node.js: $(node --version)
+Compiler: $(gcc --version 2>/dev/null | head -1 || echo 'unknown')
+PEOF
+    
+    echo "[OK] Marked $module_name as AIX-patched"
+}
+ENV_EOF
+
+    # Create build-spdlog.sh
+    cat > "$PATCH_SCRIPT_DIR/modules/build-spdlog.sh" << 'SPDLOG_EOF'
+#!/bin/bash
+# aix-patches/modules/build-spdlog.sh
+# Build @vscode/spdlog for AIX
+
+set -e
+
+SERVER_DIR="$1"
+if [[ -z "$SERVER_DIR" ]]; then
+    echo "Usage: $0 <server_directory>"
+    exit 1
+fi
+
+# Source utilities
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/../utils/aix-environment.sh"
+
+MODULE_NAME="@vscode/spdlog"
+MODULE_PATH="$SERVER_DIR/node_modules/@vscode/spdlog"
+
+echo "Building $MODULE_NAME for AIX..."
+echo "Server directory: $SERVER_DIR"
+echo "Module path: $MODULE_PATH"
+
+# Check if module needs patching
+if ! module_needs_patching "$MODULE_PATH" "$MODULE_NAME"; then
+    echo "[OK] $MODULE_NAME doesn't need patching or already patched"
+    exit 0
+fi
+
+# Create temporary build directory
+TEMP_DIR="/tmp/aix-spdlog-build-$$"
+mkdir -p "$TEMP_DIR"
+echo "Building in: $TEMP_DIR"
+
+# Ensure cleanup on exit
+cleanup_spdlog() {
+    cd "$SERVER_DIR" 2>/dev/null || true
+    rm -rf "$TEMP_DIR" 2>/dev/null || true
+}
+trap cleanup_spdlog EXIT
+
+cd "$TEMP_DIR"
+
+# Clone spdlog source
+echo "Cloning spdlog source..."
+if ! git clone https://github.com/microsoft/node-spdlog.git .; then
+    echo "[ERROR] Failed to clone spdlog repository"
+    exit 1
+fi
+
+echo "Updating submodules..."
+if ! git submodule update --init --recursive; then
+    echo "[ERROR] Failed to update git submodules"
+    exit 1
+fi
+
+# Build with AIX environment
+echo "Installing dependencies and building for AIX..."
+echo "Using CXXFLAGS: $CXXFLAGS"
+echo "Using CFLAGS: $CFLAGS"
+
+if ! npm install; then
+    echo "[ERROR] npm install failed"
+    exit 1
+fi
+
+# Test the build
+echo "Testing AIX build..."
+cat > test-build.js << 'TESTEOF'
+(async () => {
+    try {
+        const spdlog = require('./index.js');
+        console.log('[OK] Module loaded');
+        console.log('Version:', spdlog.version);
+        
+        const logger = await spdlog.createRotatingLogger('test', '/tmp/test-aix.log', 1024, 3);
+        console.log('[OK] Logger created');
+        
+        // Test logging methods
+        logger.info('AIX build test message');
+        logger.flush();
+        console.log('[OK] Logging works');
+        
+        console.log('[SUCCESS] AIX spdlog build successful!');
+    } catch (err) {
+        console.log('[ERROR] Build test failed:', err.message);
+        process.exit(1);
+    }
+})();
+TESTEOF
+
+if ! node test-build.js; then
+    echo "[ERROR] spdlog build test failed"
+    exit 1
+fi
+
+# Backup original module
+backup_module "$MODULE_PATH" "linux-backup"
+
+# Install the AIX-built version
+echo "Installing AIX-built spdlog..."
+cp -r "$TEMP_DIR"/* "$MODULE_PATH/"
+
+# Mark as patched
+mark_module_patched "$MODULE_PATH" "$MODULE_NAME"
+
+# Final verification in target location
+echo "Verifying installation..."
+cd "$MODULE_PATH"
+if node -e "const spdlog = require('./index.js'); spdlog.createRotatingLogger('verify', '/tmp/verify.log').then(() => console.log('[OK] Installation verified')).catch(err => { console.log('[ERROR] Verification failed:', err.message); process.exit(1); })"; then
+    echo "[OK] $MODULE_NAME successfully built and installed for AIX"
+    rm -f /tmp/test-aix.log /tmp/verify.log
+    exit 0
+else
+    echo "[ERROR] $MODULE_NAME installation verification failed"
+    exit 1
+fi
+SPDLOG_EOF
+
+    # Create apply-patches.sh
+    cat > "$PATCH_SCRIPT_DIR/apply-patches.sh" << 'PATCH_EOF'
+#!/bin/bash
+# aix-patches/apply-patches.sh
+# Main AIX patch orchestrator for VSCodium server
+
+set -e  # Exit on any error
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SERVER_DIR="$1"
+
+if [[ -z "$SERVER_DIR" ]]; then
+    echo "Usage: $0 <vscodium_server_directory>"
+    exit 1
+fi
+
+echo "==========================================="
+echo "AIX VSCodium Server Compatibility Patches"
+echo "==========================================="
+echo "Server Directory: $SERVER_DIR"
+echo "Patches Directory: $SCRIPT_DIR"
+echo "Platform: $(uname -s) $(uname -m)"
+echo ""
+
+# Source utilities
+source "$SCRIPT_DIR/utils/aix-environment.sh"
+
+# Counters for summary
+PATCHES_ATTEMPTED=0
+PATCHES_SUCCESS=0
+PATCHES_FAILED=0
+
+# Function to run individual module patch
+run_module_patch() {
+    local module_name="$1"
+    local patch_script="$SCRIPT_DIR/modules/build-\${module_name}.sh"
+    
+    echo "=== Patching $module_name ==="
+    PATCHES_ATTEMPTED=$((PATCHES_ATTEMPTED + 1))
+    
+    if [[ ! -f "$patch_script" ]]; then
+        echo "[WARN] Patch script not found: $patch_script"
+        PATCHES_FAILED=$((PATCHES_FAILED + 1))
+        return 1
+    fi
+    
+    if bash "$patch_script" "$SERVER_DIR"; then
+        echo "[OK] $module_name patched successfully"
+        PATCHES_SUCCESS=$((PATCHES_SUCCESS + 1))
+        return 0
+    else
+        echo "[ERROR] $module_name patch failed"
+        PATCHES_FAILED=$((PATCHES_FAILED + 1))
+        return 1
+    fi
+}
+
+# Main execution
+main() {
+    echo "Checking AIX environment..."
+    if ! setup_aix_environment; then
+        echo "[ERROR] Failed to setup AIX build environment"
+        exit 1
+    fi
+    
+    echo "Starting module patching..."
+    echo ""
+    
+    # Patch modules in order of criticality
+    run_module_patch "spdlog"
+    
+    echo ""
+    echo "========================================="
+    echo "Patch Summary:"
+    echo "  Attempted: $PATCHES_ATTEMPTED"
+    echo "  Successful: $PATCHES_SUCCESS"
+    echo "  Failed: $PATCHES_FAILED"
+    echo "========================================="
+    
+    if [[ $PATCHES_FAILED -gt 0 ]]; then
+        echo ""
+        echo "[WARN] Some patches failed. The server might have issues."
+        echo "Check individual patch logs above for details."
+        exit 1
+    else
+        echo ""
+        echo "[SUCCESS] All patches applied successfully!"
+    fi
+}
+
+# Run main function
+main "$@"
+PATCH_EOF
+    
+    # Make scripts executable
+    chmod +x "$PATCH_SCRIPT_DIR"/*.sh
+    chmod +x "$PATCH_SCRIPT_DIR/modules"/*.sh
+    chmod +x "$PATCH_SCRIPT_DIR/utils"/*.sh
+    
+    # Apply patches
+    if bash "$PATCH_SCRIPT_DIR/apply-patches.sh" "$SERVER_DIR"; then
+        echo "[OK] AIX patches applied successfully"
+    else
+        echo "[WARN] Some AIX patches failed, but continuing..."
+    fi
+fi
+
     # Handle different server structures
     if [[ $PLATFORM == "aix" ]]; then
         # For VSCodium server on AIX, we still need our Node.js wrapper due to binary incompatibility

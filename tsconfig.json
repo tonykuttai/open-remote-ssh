@@ -21,6 +21,7 @@
 			"ES2020.String",
 			"ES2020.Symbol.WellKnown",
 			"ES2020.Intl",
+			"DOM"
 		],
 		"module": "commonjs",
 		"strict": true,
@@ -35,7 +36,8 @@
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"forceConsistentCasingInFileNames": true,
-		"esModuleInterop": true
+		"esModuleInterop": true,
+		"skipLibCheck": true
 	},
 	"exclude": [
 		"node_modules",
