@@ -353,9 +353,17 @@ fi
 
 # Handle different server types based on platform
 if [[ $PLATFORM == "aix" ]]; then
-    # For AIX, use VSCodium server with exact matching version
-    SERVER_DOWNLOAD_URL="https://github.com/VSCodium/vscodium/releases/download/1.101.24242/vscodium-reh-linux-x64-1.101.24242.tar.gz"
-    echo "Using VSCodium server version 1.101.24242 for AIX (exact match)..."
+    # For AIX, use VSCodium reh-linux-x64 server with template substitution
+    # Force os to 'linux' and arch to 'x64' for AIX compatibility
+    SERVER_DOWNLOAD_URL="$(echo "${serverDownloadUrlTemplate.replace(/\$\{/g, '\\${')}" | sed "s/\\\${quality}/$DISTRO_QUALITY/g" | sed "s/\\\${version}/$DISTRO_VERSION/g" | sed "s/\\\${commit}/$DISTRO_COMMIT/g" | sed "s/\\\${os}/linux/g" | sed "s/\\\${arch}/x64/g" | sed "s/\\\${release}/$DISTRO_VSCODIUM_RELEASE/g")"
+    
+    echo "Using VSCodium reh-linux-x64 server for AIX (version: $DISTRO_VERSION)..."
+    echo "Download URL: $SERVER_DOWNLOAD_URL"
+    
+    # Set AIX-specific environment variables for the patching process
+    export AIX_PATCH_MODE="true"
+    export AIX_NODE_MODULES_PATH="$SERVER_DIR/node_modules"
+    
 else
     # Original VSCodium URL for other platforms
     SERVER_DOWNLOAD_URL="$(echo "${serverDownloadUrlTemplate.replace(/\$\{/g, '\\${')}" | sed "s/\\\${quality}/$DISTRO_QUALITY/g" | sed "s/\\\${version}/$DISTRO_VERSION/g" | sed "s/\\\${commit}/$DISTRO_COMMIT/g" | sed "s/\\\${os}/$PLATFORM/g" | sed "s/\\\${arch}/$SERVER_ARCH/g" | sed "s/\\\${release}/$DISTRO_VSCODIUM_RELEASE/g")"
