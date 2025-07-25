@@ -110,6 +110,7 @@ main() {
     run_module_patch "spdlog"
     
     # Important modules (major features won't work)
+    run_module_patch "native-watchdog"
     # run_module_patch "node-pty"      # Uncomment when ready
     # run_module_patch "sqlite3"       # Uncomment when ready
     
@@ -129,8 +130,8 @@ main() {
     echo "========================================="
     echo "Patch Summary:"
     echo "  📊 Attempted: $PATCHES_ATTEMPTED"
-    echo "  [Success] Successful: $PATCHES_SUCCESS"
-    echo "  [Fail] Failed: $PATCHES_FAILED"
+    echo "  ✅ Successful: $PATCHES_SUCCESS"
+    echo "  ❌ Failed: $PATCHES_FAILED"
     echo "========================================="
     
     if [[ $PATCHES_FAILED -gt 0 ]]; then
@@ -145,7 +146,7 @@ main() {
         echo "Next steps:"
         echo "1. Connect via Remote SSH extension"
         echo "2. Monitor for any remaining native module errors"
-        echo "3. Report issues at: https://github.com/your-repo/issues"
+        echo "3. Report issues at: https://github.com/tonykuttai/open-remote-ssh/issues"
     fi
 }
 

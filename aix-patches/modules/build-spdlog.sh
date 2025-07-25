@@ -114,7 +114,7 @@ mark_module_patched "$MODULE_PATH" "$MODULE_NAME"
 # Final verification in target location
 echo "Verifying installation..."
 cd "$MODULE_PATH"
-if node -e "const spdlog = require('./index.js'); spdlog.createRotatingLogger('verify', '/tmp/verify.log', 1024, 3).then(() => console.log('[OK] Installation verified')).catch(err => { console.log('[ERROR] Verification failed:', err.message); process.exit(1); })"; then    echo "✅ $MODULE_NAME successfully built and installed for AIX"
+if node -e "const spdlog = require('./index.js'); spdlog.createRotatingLogger('verify', '/tmp/verify.log', 1024, 3).then(() => console.log('[OK] Installation verified')).catch(err => { console.log('[ERROR] Verification failed:', err.message); process.exit(1); })"; then
     rm -f /tmp/test-aix.log /tmp/verify.log
     exit 0
 else
