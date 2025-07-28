@@ -3,13 +3,16 @@
 	"displayName": "Open Remote - SSH",
 	"description": "Use any remote machine with a SSH server as your development environment.",
 	"version": "0.0.49",
-	"publisher": "jeanp413",
+	"publisher": "tonykuttai",
+	"author": {
+		"name": "Tony Varghese",
+		"email": "tonypalampalliyil@gmail.com"},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/jeanp413/open-remote-ssh.git"
+		"url": "https://github.com/tonykuttai/open-remote-ssh.git"
 	},
 	"bugs": {
-		"url": "https://github.com/jeanp413/open-remote-ssh/issues"
+		"url": "https://github.com/tonykuttai/open-remote-ssh/issues"
 	},
 	"icon": "resources/icon.png",
 	"engines": {

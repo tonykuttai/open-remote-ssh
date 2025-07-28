@@ -18,25 +18,7 @@ You can connect to a running SSH server on the following platforms.
 
 ## Requirements
 
-**Activation**
 
-> NOTE: Not needed in VSCodium since version 1.75
-
-Enable the extension in your `argv.json`
-
-
-```json
-{
-    ...
-    "enable-proposed-api": [
-        ...,
-        "jeanp413.open-remote-ssh",
-    ]
-    ...
-}
-```
-which you can open by running the `Preferences: Configure Runtime Arguments` command.
-The file is located in `~/.vscode-oss/argv.json`.
 
 **Alpine linux**
 
