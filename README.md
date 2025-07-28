@@ -29,6 +29,7 @@ sudo apk add bash libstdc++
 **AIX**
 
 VSCode Compatibility
+
 ⚠️ IMPORTANT: This extension has been tested and verified to work with the following VSCode version only:
 ```
 Version: 1.102.24914
