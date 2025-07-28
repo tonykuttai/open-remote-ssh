@@ -18,8 +18,6 @@ You can connect to a running SSH server on the following platforms.
 
 ## Requirements
 
-
-
 **Alpine linux**
 
 When running on alpine linux, the packages `libstdc++` and `bash` are necessary and can be installed via
@@ -67,6 +65,13 @@ Use standard SSH configuration
 Ensure the AIX user has write permissions to ~/.vscodium-server/
 
 
+Installation of the vscodium extension
+- Download the [release version of the extension here](https://github.com/tonykuttai/open-remote-ssh/releases/download/v0.0.50/open-remote-ssh-0.0.50.vsix)
+```
+cd /downloaded/folder
+codium --install-extension open-remote-ssh-0.0.50.vsix
+```
+
 First Connection:
 
 The initial connection may take longer as the remote extension host is downloaded and configured
@@ -89,7 +94,6 @@ Permission issues:
 
 Ensure the user has write access to home directory
 Check that the remote user can execute Node.js
-
 
 
 Tested Configurations:
