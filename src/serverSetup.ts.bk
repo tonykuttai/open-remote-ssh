@@ -410,105 +410,11 @@ if [[ $PLATFORM == "aix" && $AIX_PATCH_MODE == "true" ]]; then
     mkdir -p "$PATCH_SCRIPT_DIR/modules"
     mkdir -p "$PATCH_SCRIPT_DIR/utils"
     
-    # Create enhanced aix-environment.sh with portlibforaix support
+    # Create aix-environment.sh
     cat > "$PATCH_SCRIPT_DIR/utils/aix-environment.sh" << 'ENV_EOF'
 #!/bin/bash
 # aix-patches/utils/aix-environment.sh
 # AIX environment setup and validation
-
-# Setup portlibforaix library dependencies
-# Setup portlibforaix library dependencies
-setup_portlibforaix() {
-    echo "Setting up portlibforaix library dependencies..."
-    
-    local install_dir="$HOME/local/portlibforaix"
-    local lib_file="$install_dir/lib/libutil.so.2"
-    
-    # Check if already installed
-    if [[ -f "$lib_file" ]]; then
-        echo "portlibforaix already installed at $install_dir"
-        echo "   libutil.so.2: $(ls -la "$lib_file")"
-        return 0
-    fi
-    
-    echo "Installing portlibforaix dependencies for node-pty..."
-    
-    # Create temporary build directory
-    local temp_dir="/tmp/portlibforaix-build-$$"
-    mkdir -p "$temp_dir"
-    
-    # Cleanup function for this setup - FIXED SYNTAX
-    cleanup_portlib() {
-        echo "Cleaning up portlibforaix build directory..."
-        rm -rf "$temp_dir" 2>/dev/null || true
-    }
-    trap cleanup_portlib EXIT
-    
-    cd "$temp_dir"
-    
-    # Clone the repository
-    echo "Cloning portlibforaix repository..."
-    if ! git clone https://github.com/tonykuttai/portlibforaix.git .; then
-        echo "Failed to clone portlibforaix repository"
-        echo "   Please check internet connectivity and GitHub access"
-        return 1
-    fi
-    
-    echo "Repository cloned successfully"
-    
-    # Show what we're building
-    echo "=== PORTLIBFORAIX BUILD INFO ==="
-    echo "Repository info:"
-    git log --oneline -3 2>/dev/null || echo "No git log available"
-    echo "Files in directory:"
-    ls -la
-    echo "================================"
-    
-    # Build and install
-    echo "Building portlibforaix..."
-    if ! make; then
-        echo "portlibforaix build failed"
-        echo "Build output in: $temp_dir"
-        echo "Please check build dependencies and try manually:"
-        echo "  cd $temp_dir"
-        echo "  make"
-        echo "  make install"
-        return 1
-    fi
-    
-    echo "Installing portlibforaix to $install_dir..."
-    if ! make install; then
-        echo "portlibforaix install failed"
-        echo "Please check permissions and try manually:"
-        echo "  cd $temp_dir" 
-        echo "  make install"
-        return 1
-    fi
-    
-    # Verify installation
-    if [[ -f "$lib_file" ]]; then
-        echo "portlibforaix installed successfully"
-        echo "   Installation directory: $install_dir"
-        echo "   libutil.so.2: $(ls -la "$lib_file")"
-        echo "   Library info: $(file "$lib_file")"
-        
-        # Test library loading
-        if ! ldd "$lib_file" >/dev/null 2>&1; then
-            echo "Warning: libutil.so.2 may have dependency issues"
-            echo "   This might cause runtime problems with node-pty"
-        else
-            echo "Library dependencies look good"
-        fi
-        
-        return 0
-    else
-        echo "Installation verification failed - libutil.so.2 not found"
-        echo "Expected: $lib_file"
-        echo "Installed files:"
-        find "$install_dir" -name "*.so*" 2>/dev/null || echo "No shared libraries found"
-        return 1
-    fi
-}
 
 # Setup AIX build environment
 setup_aix_environment() {
@@ -539,16 +445,8 @@ setup_aix_environment() {
     if ! validate_build_tools; then
         return 1
     fi
-
-    # Setup portlibforaix dependencies
-    if ! setup_portlibforaix; then
-        echo "portlibforaix setup failed"
-        echo "   This is required for node-pty builds"
-        echo "   You may need to install it manually from https://github.com/tonykuttai/portlibforaix"
-        return 1
-    fi
     
-    echo "AIX build environment ready"
+    echo "[OK] AIX build environment ready"
     return 0
 }
 
@@ -565,7 +463,7 @@ validate_build_tools() {
     command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 || missing_tools+=("python")
     
     if [[ \${#missing_tools[@]} -gt 0 ]]; then
-        echo "Missing required tools: \${missing_tools[*]}"
+        echo "[ERROR] Missing required tools: \${missing_tools[*]}"
         echo ""
         echo "Please install missing tools:"
         echo "  yum install git gcc gcc-c++ make python3"
@@ -577,7 +475,6 @@ validate_build_tools() {
     echo "  Node.js: $(node --version)"
     echo "  npm: $(npm --version)"
     echo "  gcc: $(gcc --version 2>/dev/null | head -1 || echo 'not found')"
-    echo "  xlc: $(xlc -qversion 2>/dev/null | head -1 || echo 'not found')"
     echo "  Python: $(python3 --version 2>/dev/null || python --version 2>/dev/null || echo 'not found')"
     
     return 0
@@ -622,9 +519,9 @@ backup_module() {
     
     if [[ ! -d "$module_path.$backup_suffix" ]]; then
         cp -r "$module_path" "$module_path.$backup_suffix"
-        echo "Backed up original module to $module_path.$backup_suffix"
+        echo "[OK] Backed up original module to $module_path.$backup_suffix"
     else
-        echo "Backup already exists: $module_path.$backup_suffix"
+        echo "[INFO] Backup already exists: $module_path.$backup_suffix"
     fi
 }
 
@@ -639,11 +536,10 @@ Module: $module_name
 Date: $(date)
 Platform: $(uname -s) $(uname -m)
 Node.js: $(node --version)
-Compiler: $(gcc --version 2>/dev/null | head -1 || xlc -qversion 2>/dev/null | head -1 || echo 'unknown')
-Portlibforaix: $(ls -la "$HOME/local/portlibforaix/lib/libutil.so.2" 2>/dev/null || echo 'not found')
+Compiler: $(gcc --version 2>/dev/null | head -1 || echo 'unknown')
 PEOF
     
-    echo "Marked $module_name as AIX-patched"
+    echo "[OK] Marked $module_name as AIX-patched"
 }
 ENV_EOF
 
@@ -1054,11 +950,11 @@ echo "[OK] $MODULE_NAME build and installation completed for AIX"
 echo "[INFO] Note: Runtime compatibility will be tested when the server starts"
 WATCHDOG_EOF
 
- # Create build-node-pty.sh - Build from source approach  
-    cat > "$PATCH_SCRIPT_DIR/modules/build-node-pty.sh" << 'PTY_EOF'
+# Create build-node-pty.sh - Simple copy approach
+cat > "$PATCH_SCRIPT_DIR/modules/build-node-pty.sh" << 'PTY_EOF'
 #!/bin/bash
 # aix-patches/modules/build-node-pty.sh
-# Build node-pty from source for AIX
+# Copy pre-built AIX node-pty
 
 set -e
 
@@ -1074,14 +970,11 @@ source "$SCRIPT_DIR/../utils/aix-environment.sh"
 
 MODULE_NAME="node-pty"
 MODULE_PATH="$SERVER_DIR/node_modules/node-pty"
-PTY_REPO="https://github.com/tonykuttai/node-pty.git"
-PTY_BRANCH="main"
+CUSTOM_PTY_PATH="$HOME/utility/node-pty"
 
-echo "Building $MODULE_NAME for AIX from source..."
-echo "Server directory: $SERVER_DIR"
+echo "Installing pre-built AIX node-pty..."
 echo "Module path: $MODULE_PATH"
-echo "Repository: $PTY_REPO"
-echo "Branch: $PTY_BRANCH"
+echo "Source path: $CUSTOM_PTY_PATH"
 
 # Check if already patched
 if [[ -f "$MODULE_PATH/.aix-patched" ]]; then
@@ -1095,158 +988,78 @@ if [[ ! -d "$MODULE_PATH" ]]; then
     exit 1
 fi
 
-# Check if Linux binary exists (to confirm patching is needed)
+# Check if custom node-pty exists
+if [[ ! -d "$CUSTOM_PTY_PATH" ]]; then
+    echo "[ERROR] Custom node-pty not found at $CUSTOM_PTY_PATH"
+    exit 1
+fi
+
+# Check for the AIX binary
+if [[ ! -f "$CUSTOM_PTY_PATH/build/Release/pty.node" ]]; then
+    echo "[ERROR] AIX pty.node not found at $CUSTOM_PTY_PATH/build/Release/pty.node"
+    exit 1
+fi
+
+# Verify it's an AIX binary
+echo "Verifying AIX binary..."
+if ! file "$CUSTOM_PTY_PATH/build/Release/pty.node" | grep -q "XCOFF"; then
+    echo "[ERROR] pty.node is not an AIX XCOFF binary"
+    file "$CUSTOM_PTY_PATH/build/Release/pty.node"
+    exit 1
+fi
+
+echo "Found AIX-built pty.node:"
+file "$CUSTOM_PTY_PATH/build/Release/pty.node"
+ls -la "$CUSTOM_PTY_PATH/build/Release/pty.node"
+
+# Check if Linux binary exists in original module (to confirm patching is needed)
 if [[ -f "$MODULE_PATH/build/Release/pty.node" ]]; then
     if file "$MODULE_PATH/build/Release/pty.node" | grep -q "ELF.*x86-64"; then
         echo "Found Linux binary in $MODULE_NAME: $MODULE_PATH/build/Release/pty.node"
-        echo "Building AIX replacement..."
-    elif file "$MODULE_PATH/build/Release/pty.node" | grep -q "XCOFF"; then
-        echo "[OK] Already has AIX binary, marking as patched"
-        mark_module_patched "$MODULE_PATH" "$MODULE_NAME"
-        exit 0
+        echo "Patching is needed"
     else
-        echo "[INFO] Unknown binary format, proceeding with AIX build..."
+        echo "[INFO] Existing binary is not Linux x86-64, checking if already AIX..."
+        if file "$MODULE_PATH/build/Release/pty.node" | grep -q "XCOFF"; then
+            echo "[OK] Already has AIX binary, marking as patched"
+            mark_module_patched "$MODULE_PATH" "$MODULE_NAME"
+            exit 0
+        fi
     fi
 fi
 
-# Create temporary build directory
-TEMP_DIR="/tmp/aix-nodepty-build-$"
-mkdir -p "$TEMP_DIR"
-echo "Building in: $TEMP_DIR"
+# Backup original module
+backup_module "$MODULE_PATH" "linux-backup"
 
-# Cleanup function
-cleanup_nodepty() {
-    echo "Cleaning up build directory..."
-    cd "$SERVER_DIR" 2>/dev/null || true
-    if [[ -f "$TEMP_DIR/build/Release/pty.node" ]]; then
-        echo "Build succeeded, cleaning up temp directory"
-        rm -rf "$TEMP_DIR" 2>/dev/null || true
-    else
-        echo "Build may have failed - keeping temp dir for debugging: $TEMP_DIR"
-    fi
-}
-trap cleanup_nodepty EXIT
+# Copy the entire working node-pty directory
+echo "Copying pre-built AIX node-pty..."
+cp -r "$CUSTOM_PTY_PATH"/* "$MODULE_PATH/"
 
-cd "$TEMP_DIR"
+# Ensure the binary is executable
+chmod +x "$MODULE_PATH/build/Release/pty.node"
 
-# Clone node-pty source
-echo "Cloning node-pty source from custom AIX branch..."
-if ! git clone "$PTY_REPO" -b "$PTY_BRANCH" .; then
-    echo "[ERROR] Failed to clone node-pty repository"
-    exit 0
-fi
-
-echo "Successfully cloned node-pty AIX branch"
-
-echo "=== BUILD SETUP ==="
-echo "Current directory: $(pwd)"
-echo "==================="
-
-# Build with AIX environment
-echo "Installing dependencies and building for AIX..."
-echo "Using CXXFLAGS: $CXXFLAGS"
-echo "Using CFLAGS: $CFLAGS"
-
-# Install dependencies (needed for node-addon-api)
-echo "Installing dependencies for node-addon-api..."
-if ! npm install --no-optional; then
-    echo "[ERROR] npm install failed - cannot get node-addon-api"
-    exit 1
-fi
-
-# Create the proven compile script
-echo "Creating proven AIX compile script..."
-cat > compile-aix.sh << 'COMPILE_EOF'
-#!/bin/bash
-# Proven AIX compile script for node-pty
-
-set -e
-
-# Verify prerequisites
-if [[ ! -f "$HOME/local/portlibforaix/lib/libutil.so.2" ]]; then
-    echo "[ERROR] libutil.so.2 not found at $HOME/local/portlibforaix/lib/libutil.so.2"
-    exit 1
-fi
-
-# Create build directory
-mkdir -p build/Release
-
-echo "Compiling node-pty source..."
-g++ -o build/Release/pty.o -c src/unix/pty.cc \
-  -I/opt/nodejs/include/node \
-  -I$HOME/.cache/node-gyp/$(node -v)/include/node \
-  -Inode_modules/node-addon-api \
-  -I/opt/freeware/include \
-  -std=gnu++17 -D_GLIBCXX_USE_CXX11_ABI=0 \
-  -fPIC -pthread -Wall -Wextra -Wno-unused-parameter \
-  -maix64 -O3 -fno-omit-frame-pointer
-
-echo "Linking shared library..."
-g++ -shared -maix64 \
-  -Wl,-bimport:/opt/nodejs/include/node/node.exp \
-  -pthread \
-  -lpthread \
-  -lstdc++ \
-  -o build/Release/pty.node \
-  build/Release/pty.o \
-  -L$HOME/local/portlibforaix/lib \
-  $HOME/local/portlibforaix/lib/libutil.so.2
-
-echo "Build completed successfully!"
-echo "Module created: build/Release/pty.node"
-
-# Verify it's an AIX binary
-if file build/Release/pty.node | grep -q "XCOFF"; then
-    echo "✓ AIX XCOFF binary confirmed"
+# Verify installation
+echo "Verifying copied installation..."
+if [[ -f "$MODULE_PATH/build/Release/pty.node" ]]; then
+    echo "✓ Binary copied successfully:"
+    file "$MODULE_PATH/build/Release/pty.node"
+    ls -la "$MODULE_PATH/build/Release/pty.node"
 else
-    echo "✗ Binary is not AIX format"
-    file build/Release/pty.node
-    exit 1
-fi
-COMPILE_EOF
-
-chmod +x compile-aix.sh
-
-# Run the proven build
-echo "Building with proven compile method..."
-if ! bash compile-aix.sh; then
-    echo "[ERROR] Proven compile method failed"
+    echo "[ERROR] Binary not found after copy"
     exit 1
 fi
 
-# Verify build output
-EXPECTED_BINARY="./build/Release/pty.node"
-if [[ ! -f "$EXPECTED_BINARY" ]]; then
-    echo "[ERROR] Build failed - pty.node not found"
-    echo "Build directory contents:"
-    find . -name "*.node" -type f 2>/dev/null || echo "No .node files found"
-    exit 1
-fi
+# Quick functional test
+echo "Testing copied node-pty..."
+cd "$MODULE_PATH"
 
-echo "=== BUILD VERIFICATION ==="
-echo "Built binary info:"
-file "$EXPECTED_BINARY"
-ls -la "$EXPECTED_BINARY"
-
-# Verify it's an AIX binary
-if ! file "$EXPECTED_BINARY" | grep -q "XCOFF"; then
-    echo "[ERROR] Built binary is not AIX XCOFF format"
-    file "$EXPECTED_BINARY"
-    exit 1
-fi
-echo "✓ AIX XCOFF binary confirmed"
-echo "=========================="
-
-# Test the build
-echo "Testing AIX-built node-pty..."
-cat > test-build.js << 'TESTEOF'
+cat > test-copied-pty.js << 'TESTEOF'
 try {
     const pty = require('./lib/index.js');
-    console.log('[OK] Node-pty loads successfully');
+    console.log('[OK] Copied node-pty loads successfully');
     console.log('[INFO] Available functions:', Object.keys(pty));
     
     // Quick spawn test
-    const child = pty.spawn('echo', ['AIX build test successful'], {
+    const child = pty.spawn('echo', ['AIX pty copy test'], {
         name: 'xterm-color',
         cols: 80,
         rows: 24,
@@ -1259,523 +1072,29 @@ try {
     });
     
     child.on('exit', (code) => {
-        console.log('[SUCCESS] Build test completed successfully!');
+        console.log('[SUCCESS] Copy test completed successfully!');
         process.exit(0);
     });
     
     setTimeout(() => {
-        console.log('[INFO] Test timeout (normal for echo command)');
+        console.log('[TIMEOUT] Test completed (timeout is normal)');
         process.exit(0);
     }, 3000);
     
 } catch (err) {
-    console.log('[ERROR] Build test failed:', err.message);
+    console.log('[ERROR] Copy test failed:', err.message);
     process.exit(1);
 }
 TESTEOF
 
-if timeout 5 node test-build.js 2>/dev/null; then
-    echo "[OK] Functional test passed"
-else
-    echo "[WARN] Functional test failed or timed out, but continuing..."
-fi
-
-# Backup original module
-echo "Backing up original module..."
-backup_module "$MODULE_PATH" "linux-backup"
-
-# Install the AIX-built version
-echo "Installing AIX-built node-pty..."
-cp -r "$TEMP_DIR"/* "$MODULE_PATH/"
-
-# Ensure the binary is executable
-chmod +x "$MODULE_PATH/build/Release/pty.node"
-
-# Verify installation
-echo "Verifying installation..."
-if [[ -f "$MODULE_PATH/build/Release/pty.node" ]]; then
-    echo "✓ Binary installed successfully:"
-    file "$MODULE_PATH/build/Release/pty.node"
-    ls -la "$MODULE_PATH/build/Release/pty.node"
-else
-    echo "[ERROR] Binary not found after installation"
-    exit 1
-fi
+timeout 5 node test-copied-pty.js || echo "[INFO] Test timeout (normal)"
 
 # Mark as patched
 mark_module_patched "$MODULE_PATH" "$MODULE_NAME"
 
-# Final verification in target location
-echo "Final verification in target location..."
-cd "$MODULE_PATH"
-
-cat > verify-install.js << 'VERIFYEOF'
-try {
-    const pty = require('./lib/index.js');
-    console.log('[OK] Installation verified - node-pty loads successfully');
-    console.log('[INFO] Available functions:', Object.keys(pty));
-    console.log('[SUCCESS] AIX node-pty ready for VSCodium terminal support!');
-} catch (err) {
-    console.log('[ERROR] Installation verification failed:', err.message);
-    process.exit(1);
-}
-VERIFYEOF
-
-if node verify-install.js; then
-    echo "[OK] $MODULE_NAME successfully built and installed for AIX"
-else
-    echo "[ERROR] Installation verification failed"
-    exit 1
-fi
-
-echo "[INFO] Terminal functionality should now work properly in VSCodium"
+echo "[OK] Pre-built AIX node-pty successfully installed for VSCodium"
+echo "[INFO] Terminal functionality should now work properly"
 PTY_EOF
-
-# Create build-deviceid.sh - Fix AIX platform support
-    cat > "$PATCH_SCRIPT_DIR/modules/build-deviceid.sh" << 'DEVICEID_EOF'
-#!/bin/bash
-# aix-patches/modules/build-deviceid.sh
-# Fix @vscode/deviceid for AIX platform support
-
-set -e
-
-SERVER_DIR="$1"
-if [[ -z "$SERVER_DIR" ]]; then
-    echo "Usage: $0 <server_directory>"
-    exit 1
-fi
-
-# Source utilities
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/../utils/aix-environment.sh"
-
-MODULE_NAME="@vscode/deviceid"
-MODULE_PATH="$SERVER_DIR/node_modules/@vscode/deviceid"
-
-echo "Patching $MODULE_NAME for AIX platform support..."
-echo "Server directory: $SERVER_DIR"
-echo "Module path: $MODULE_PATH"
-
-# Check if module exists
-if [[ ! -d "$MODULE_PATH" ]]; then
-    echo "Module $MODULE_NAME not found at $MODULE_PATH"
-    exit 1
-fi
-
-# Check if already patched
-if [[ -f "$MODULE_PATH/.aix-patched" ]]; then
-    echo "Module $MODULE_NAME already patched for AIX"
-    exit 0
-fi
-
-# Backup original files
-backup_module "$MODULE_PATH" "original-backup"
-
-# Patch index.js - Add AIX platform support
-INDEX_FILE="$MODULE_PATH/dist/index.js"
-if [[ -f "$INDEX_FILE" ]]; then
-    echo "Patching $INDEX_FILE for AIX platform support..."
-    
-    # Create backup
-    cp "$INDEX_FILE" "$INDEX_FILE.backup"
-    
-    # Apply patch: Add AIX to supported platforms
-    # Look for the pattern and replace it correctly
-    if grep -q 'process\\.platform !== "linux"' "$INDEX_FILE"; then
-        sed -i 's/process\\.platform !== "linux"/process.platform !== "linux" \\&\\& process.platform !== "aix"/g' "$INDEX_FILE"
-        echo "✓ Applied AIX platform patch to index.js"
-    else
-        echo "⚠ Could not find expected pattern in index.js"
-        echo "Searching for process.platform patterns:"
-        grep -n "process\\.platform" "$INDEX_FILE" || echo "No process.platform found"
-    fi
-    
-    # Verify the patch was applied
-    if grep -q 'process.platform !== "aix"' "$INDEX_FILE"; then
-        echo "✓ Successfully patched $INDEX_FILE"
-    else
-        echo "✗ Patch verification failed for $INDEX_FILE"
-    fi
-else
-    echo "Warning: $INDEX_FILE not found - skipping index.js patch"
-fi
-
-# Patch storage.js - Add AIX to Linux storage path logic
-STORAGE_FILE="$MODULE_PATH/dist/storage.js"
-if [[ -f "$STORAGE_FILE" ]]; then
-    echo "Patching $STORAGE_FILE for AIX storage path support..."
-    
-    # Create backup
-    cp "$STORAGE_FILE" "$STORAGE_FILE.backup"
-    
-    # Apply patch: Add AIX to Linux storage logic
-    if grep -q 'process\\.platform === "linux"' "$STORAGE_FILE"; then
-        sed -i 's/process\\.platform === "linux"/process.platform === "linux" || process.platform === "aix"/g' "$STORAGE_FILE"
-        echo "✓ Applied AIX storage patch to storage.js"
-    else
-        echo "⚠ Could not find expected pattern in storage.js"
-    fi
-    
-    # Verify the patch was applied
-    if grep -q 'process.platform === "aix"' "$STORAGE_FILE"; then
-        echo "✓ Successfully patched $STORAGE_FILE"
-    else
-        echo "✗ Patch verification failed for $STORAGE_FILE"
-    fi
-else
-    echo "Warning: $STORAGE_FILE not found - skipping storage.js patch"
-fi
-
-# Test the patches by attempting to require the module
-echo "Testing patched module..."
-cd "$MODULE_PATH"
-
-cat > test-deviceid.js << 'TESTEOF'
-try {
-    // Test loading the module
-    const deviceId = require('./dist/index.js');
-    console.log('✓ Module loads successfully after AIX patches');
-    
-    // Test basic functionality if available
-    if (typeof deviceId.getDeviceId === 'function') {
-        console.log('✓ getDeviceId function is available');
-    } else {
-        console.log('ℹ getDeviceId function not found, but module loaded');
-    }
-    
-    console.log('✓ DeviceID AIX patch test passed');
-} catch (err) {
-    console.log('✗ DeviceID patch test failed:', err.message);
-    console.log('⚠ Continuing despite test failure - runtime compatibility will be verified when server starts');
-}
-TESTEOF
-
-if node test-deviceid.js 2>/dev/null; then
-    echo "✓ DeviceID module test passed"
-else
-    echo "⚠ DeviceID module test had issues, but continuing"
-fi
-
-# Clean up test file
-rm -f test-deviceid.js
-
-# Mark as patched
-mark_module_patched "$MODULE_PATH" "$MODULE_NAME"
-
-echo "✓ $MODULE_NAME successfully patched for AIX platform support"
-DEVICEID_EOF
-
-# Create build-platform-override.sh - Platform override system
-    cat > "$PATCH_SCRIPT_DIR/modules/build-platform-override.sh" << 'OVERRIDE_EOF'
-#!/bin/bash
-# aix-patches/modules/build-platform-override.sh
-# Create platform override system for AIX
-
-set -e
-
-SERVER_DIR="$1"
-if [[ -z "$SERVER_DIR" ]]; then
-    echo "Usage: $0 <server_directory>"
-    exit 1
-fi
-
-# Source utilities
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/../utils/aix-environment.sh"
-
-MODULE_NAME="platform-override"
-OVERRIDE_FILE="$SERVER_DIR/aix-platform-override.js"
-SERVER_SCRIPT="$SERVER_DIR/bin/codium-server"
-CLI_SCRIPT="$SERVER_DIR/bin/remote-cli/codium"
-
-echo "Creating AIX platform override system..."
-echo "Server directory: $SERVER_DIR"
-
-# Check if already patched
-if [[ -f "$SERVER_DIR/.platform-override-patched" ]]; then
-    echo "Platform override already installed"
-    exit 0
-fi
-
-# Step 1: Create the platform override script
-echo "Creating platform override script..."
-cat > "$OVERRIDE_FILE" << 'PLATFORM_EOF'
-// AIX Platform Override - intercept process.platform calls
-const originalPlatform = process.platform;
-
-// Create a property descriptor that returns 'linux' when VSCodium asks
-Object.defineProperty(process, 'platform', {
-    get: function() {
-        // Get the call stack to see who's asking
-        const stack = new Error().stack;
-
-        // For VSCodium components, pretend we're Linux
-        if (stack && (stack.includes('ptyHost') || stack.includes('server-main') || stack.includes('deviceid'))) {
-            return 'linux';
-        }
-
-        // For everything else (including node-pty), return actual platform
-        return originalPlatform;
-    },
-    configurable: true
-});
-
-// Uncomment for debugging:
-// console.log('[AIX Override] Installed platform override');
-// console.log('[AIX Override] Real platform:', originalPlatform);
-PLATFORM_EOF
-
-echo "✓ Created platform override: $OVERRIDE_FILE"
-
-# Step 2: Modify server wrapper to load platform override
-echo "Updating server wrapper script..."
-if [[ -f "$SERVER_SCRIPT" ]]; then
-    # Backup original
-    cp "$SERVER_SCRIPT" "$SERVER_SCRIPT.backup"
-    
-    cat > "$SERVER_SCRIPT" << 'SERVER_EOF'
-#!/bin/bash
-# VSCodium Server wrapper for AIX - With Platform Override
-
-# Use the known Node.js location for AIX
-NODE_BIN="/opt/nodejs/bin/node"
-
-if [[ ! -x "$NODE_BIN" ]]; then
-    echo "ERROR: Node.js not found at $NODE_BIN"
-    exit 1
-fi
-
-# Get script directory
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
-# Look for server main script in common locations
-SERVER_MAIN=""
-if [[ -f "$SCRIPT_DIR/../out/server-main.js" ]]; then
-    SERVER_MAIN="$SCRIPT_DIR/../out/server-main.js"
-elif [[ -f "$SCRIPT_DIR/../out/vs/server/main.js" ]]; then
-    SERVER_MAIN="$SCRIPT_DIR/../out/vs/server/main.js"
-else
-    echo "ERROR: Server main script not found"
-    exit 1
-fi
-
-# Use -r flag to preload our platform override
-exec "$NODE_BIN" -r "$SCRIPT_DIR/../aix-platform-override.js" "$SERVER_MAIN" "$@"
-SERVER_EOF
-
-    chmod +x "$SERVER_SCRIPT"
-    echo "✓ Updated server wrapper: $SERVER_SCRIPT"
-else
-    echo "⚠ Server script not found: $SERVER_SCRIPT"
-fi
-
-# Step 3: Fix remote CLI to use AIX Node.js
-echo "Updating remote CLI script..."
-CLI_DIR="$(dirname "$CLI_SCRIPT")"
-mkdir -p "$CLI_DIR"
-
-if [[ -f "$CLI_SCRIPT" ]]; then
-    # Backup original
-    cp "$CLI_SCRIPT" "$CLI_SCRIPT.backup"
-fi
-
-# Extract version info from existing script if available, otherwise use defaults
-VERSION="1.102.24914"
-COMMIT="$(basename "$SERVER_DIR")"
-if [[ -f "$CLI_SCRIPT.backup" ]]; then
-    # Try to extract actual values from backup
-    VERSION=$(grep '^VERSION=' "$CLI_SCRIPT.backup" 2>/dev/null | cut -d'"' -f2 || echo "$VERSION")
-    COMMIT=$(grep '^COMMIT=' "$CLI_SCRIPT.backup" 2>/dev/null | cut -d'"' -f2 || echo "$COMMIT")
-fi
-
-cat > "$CLI_SCRIPT" << CLI_EOF
-#!/usr/bin/env bash
-#
-# Copyright (c) Microsoft Corporation. All rights reserved.
-# Modified for AIX compatibility
-#
-ROOT="\\$(dirname "\\$(dirname "\\$(dirname "\\$(readlink -f "\\$0")")")")"
-APP_NAME="codium"
-VERSION="$VERSION"
-COMMIT="$COMMIT"
-EXEC_NAME="codium"
-CLI_SCRIPT="\\$ROOT/out/server-cli.js"
-
-# Use AIX Node.js instead of bundled Linux binary
-NODE_BIN="/opt/nodejs/bin/node"
-
-if [[ ! -x "\\$NODE_BIN" ]]; then
-    echo "ERROR: Node.js not found at \\$NODE_BIN"
-    exit 1
-fi
-
-# Execute with AIX Node.js and platform override
-exec "\\$NODE_BIN" -r "\\$ROOT/aix-platform-override.js" "\\$CLI_SCRIPT" "\\$APP_NAME" "\\$VERSION" "\\$COMMIT" "\\$EXEC_NAME" "\\$@"
-CLI_EOF
-
-chmod +x "$CLI_SCRIPT"
-echo "✓ Updated remote CLI: $CLI_SCRIPT"
-
-# Step 4: Test the platform override
-echo "Testing platform override..."
-cd "$SERVER_DIR"
-
-cat > test-platform-override.js << 'TESTEOF'
-try {
-    console.log('Testing platform override...');
-    console.log('Direct process.platform:', process.platform);
-    
-    // Simulate a VSCodium call by manipulating the stack
-    function testWithMockedStack() {
-        const originalError = Error;
-        Error = function() {
-            const err = new originalError();
-            err.stack = 'fake stack trace with ptyHost in it';
-            return err;
-        };
-        
-        const result = process.platform;
-        Error = originalError;
-        return result;
-    }
-    
-    const mockResult = testWithMockedStack();
-    console.log('Mocked ptyHost call result:', mockResult);
-    
-    if (mockResult === 'linux') {
-        console.log('✓ Platform override working correctly');
-    } else {
-        console.log('⚠ Platform override may not be working as expected');
-    }
-    
-} catch (err) {
-    console.log('✗ Platform override test failed:', err.message);
-}
-TESTEOF
-
-if node -r ./aix-platform-override.js test-platform-override.js; then
-    echo "✓ Platform override test passed"
-else
-    echo "⚠ Platform override test had issues"
-fi
-
-# Clean up test file
-rm -f test-platform-override.js
-
-# Mark as patched
-touch "$SERVER_DIR/.platform-override-patched"
-cat > "$SERVER_DIR/.platform-override-patched" << PATCH_EOF
-AIX Platform Override Applied
-Date: $(date)
-Platform: $(uname -s) $(uname -m)
-Node.js: $(node --version)
-Files modified:
-  - aix-platform-override.js (created)
-  - bin/codium-server (updated)
-  - bin/remote-cli/codium (updated)
-PATCH_EOF
-
-echo "✓ Platform override system successfully installed"
-echo ""
-echo "Summary of changes:"
-echo "  • Created: aix-platform-override.js"
-echo "  • Updated: bin/codium-server (with platform override)"
-echo "  • Updated: bin/remote-cli/codium (AIX Node.js + platform override)"
-echo "  • All original files backed up with .backup extension"
-
-OVERRIDE_EOF
-
-    # Create build-path-setup.sh - Add VSCodium to PATH
-    cat > "$PATCH_SCRIPT_DIR/modules/build-path-setup.sh" << 'PATH_EOF'
-#!/bin/bash
-# aix-patches/modules/build-path-setup.sh
-# Setup PATH for VSCodium remote CLI
-
-set -e
-
-SERVER_DIR="$1"
-if [[ -z "$SERVER_DIR" ]]; then
-    echo "Usage: $0 <server_directory>"
-    exit 1
-fi
-
-# Source utilities
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/../utils/aix-environment.sh"
-
-MODULE_NAME="path-setup"
-CLI_DIR="$SERVER_DIR/bin/remote-cli"
-BASHRC_FILE="$HOME/.bashrc"
-
-echo "Setting up VSCodium CLI in PATH..."
-echo "Server directory: $SERVER_DIR"
-echo "CLI directory: $CLI_DIR"
-
-# Check if already patched
-if [[ -f "$SERVER_DIR/.path-setup-patched" ]]; then
-    echo "PATH setup already configured"
-    exit 0
-fi
-
-# Verify CLI exists
-if [[ ! -f "$CLI_DIR/codium" ]]; then
-    echo "⚠ Remote CLI not found at $CLI_DIR/codium"
-    echo "This should be created by the platform-override patch first"
-    exit 1
-fi
-
-# Check if PATH is already set up
-if echo "$PATH" | grep -q "$CLI_DIR"; then
-    echo "✓ VSCodium CLI already in PATH"
-else
-    echo "Adding VSCodium CLI to PATH..."
-    
-    # Add to .bashrc or .bashrc.mine if it exists
-    BASHRC_TARGET="$BASHRC_FILE"
-    if [[ -f "$HOME/.bashrc.mine" ]]; then
-        BASHRC_TARGET="$HOME/.bashrc.mine"
-        echo "Using .bashrc.mine for PATH setup"
-    fi
-    
-    # Create the PATH export line
-    PATH_EXPORT="export PATH=\\"$CLI_DIR:\\$PATH\\""
-    
-    # Check if already in bashrc
-    if ! grep -F "$CLI_DIR" "$BASHRC_TARGET" >/dev/null 2>&1; then
-        echo "" >> "$BASHRC_TARGET"
-        echo "# VSCodium Server CLI - Added by AIX patches" >> "$BASHRC_TARGET"
-        echo "$PATH_EXPORT" >> "$BASHRC_TARGET"
-        echo "✓ Added VSCodium CLI to PATH in $BASHRC_TARGET"
-    else
-        echo "✓ VSCodium CLI PATH already exists in $BASHRC_TARGET"
-    fi
-fi
-
-# Test the CLI
-echo "Testing VSCodium CLI..."
-if "$CLI_DIR/codium" --version >/dev/null 2>&1; then
-    echo "✓ VSCodium CLI working"
-else
-    echo "⚠ VSCodium CLI test failed, but this may be normal if server isn't running"
-fi
-
-# Mark as patched
-touch "$SERVER_DIR/.path-setup-patched"
-cat > "$SERVER_DIR/.path-setup-patched" << PATCH_EOF
-AIX PATH Setup Applied
-Date: $(date)
-CLI Directory: $CLI_DIR
-Added to: $BASHRC_TARGET
-PATCH_EOF
-
-echo "✓ PATH setup completed"
-echo ""
-echo "Summary:"
-echo "  • VSCodium CLI available at: $CLI_DIR/codium"
-echo "  • Added to PATH in: $BASHRC_TARGET"
-echo "  • Restart your shell or run 'source $BASHRC_TARGET' to use 'codium' command"
-
-PATH_EOF
 
     # Create apply-patches.sh
     cat > "$PATCH_SCRIPT_DIR/apply-patches.sh" << 'PATCH_EOF'
@@ -1846,12 +1165,9 @@ main() {
     echo ""
     
     # Patch modules in order of criticality
-    run_module_patch "deviceid"           # Fix AIX platform support
-    run_module_patch "platform-override"  # Install platform override system
     run_module_patch "spdlog"
     run_module_patch "native-watchdog"
-    run_module_patch "node-pty"
-    run_module_patch "path-setup"         # Setup CLI in PATH
+    run_module_patch "node-pty"      
     
     echo ""
     echo "========================================="

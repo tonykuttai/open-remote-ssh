@@ -2,6 +2,99 @@
 # aix-patches/utils/aix-environment.sh
 # AIX environment setup and validation
 
+# Setup portlibforaix library dependencies
+setup_portlibforaix() {
+    echo "Setting up portlibforaix library dependencies..."
+    
+    local install_dir="$HOME/local/portlibforaix"
+    local lib_file="$install_dir/lib/libutil.so.2"
+    
+    # Check if already installed
+    if [[ -f "$lib_file" ]]; then
+        echo "portlibforaix already installed at $install_dir"
+        echo "   libutil.so.2: $(ls -la "$lib_file")"
+        return 0
+    fi
+    
+    echo "Installing portlibforaix dependencies for node-pty..."
+    
+    # Create temporary build directory
+    local temp_dir="/tmp/portlibforaix-build-$$"
+    mkdir -p "$temp_dir"
+    
+    # Cleanup function for this setup
+    local cleanup_portlib() {
+        echo "Cleaning up portlibforaix build directory..."
+        rm -rf "$temp_dir" 2>/dev/null || true
+    }
+    trap cleanup_portlib EXIT
+    
+    cd "$temp_dir"
+    
+    # Clone the repository
+    echo "Cloning portlibforaix repository..."
+    if ! git clone https://github.com/tonykuttai/portlibforaix.git .; then
+        echo " Failed to clone portlibforaix repository"
+        echo "   Please check internet connectivity and GitHub access"
+        return 1
+    fi
+    
+    echo "Repository cloned successfully"
+    
+    # Show what we're building
+    echo "=== PORTLIBFORAIX BUILD INFO ==="
+    echo "Repository info:"
+    git log --oneline -3 2>/dev/null || echo "No git log available"
+    echo "Files in directory:"
+    ls -la
+    echo "================================"
+    
+    # Build and install
+    echo "Building portlibforaix..."
+    if ! make; then
+        echo " portlibforaix build failed"
+        echo "Build output in: $temp_dir"
+        echo "Please check build dependencies and try manually:"
+        echo "  cd $temp_dir"
+        echo "  make"
+        echo "  make install"
+        return 1
+    fi
+    
+    echo "Installing portlibforaix to $install_dir..."
+    if ! make install; then
+        echo " portlibforaix install failed"
+        echo "Please check permissions and try manually:"
+        echo "  cd $temp_dir" 
+        echo "  make install"
+        return 1
+    fi
+    
+    # Verify installation
+    if [[ -f "$lib_file" ]]; then
+        echo "portlibforaix installed successfully"
+        echo "   Installation directory: $install_dir"
+        echo "   libutil.so.2: $(ls -la "$lib_file")"
+        echo "   Library info: $(file "$lib_file")"
+        
+        # Test library loading
+        if ! ldd "$lib_file" >/dev/null 2>&1; then
+            echo "  Warning: libutil.so.2 may have dependency issues"
+            echo "   This might cause runtime problems with node-pty"
+        else
+            echo "Library dependencies look good"
+        fi
+        
+        return 0
+    else
+        echo " Installation verification failed - libutil.so.2 not found"
+        echo "Expected: $lib_file"
+        echo "Installed files:"
+        find "$install_dir" -name "*.so*" 2>/dev/null || echo "No shared libraries found"
+        return 1
+    fi
+}
+
 # Setup AIX build environment
 setup_aix_environment() {
     echo "Setting up AIX build environment..."
@@ -31,8 +124,17 @@ setup_aix_environment() {
     if ! validate_build_tools; then
         return 1
     fi
+
+    # Setup portlibforaix dependencies
+    if ! setup_portlibforaix; then
+        echo "   portlibforaix setup failed"
+        echo "   This is required for node-pty builds"
+        echo "   You may need to install it manually from https://github.com/tonykuttai/portlibforaix"
+        return 1
+    fi
     
-    echo "✅ AIX build environment ready"
+    
+    echo "AIX build environment ready"
     return 0
 }
 
@@ -49,7 +151,7 @@ validate_build_tools() {
     command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 || missing_tools+=("python")
     
     if [[ ${#missing_tools[@]} -gt 0 ]]; then
-        echo "❌ Missing required tools: ${missing_tools[*]}"
+        echo " Missing required tools: ${missing_tools[*]}"
         echo ""
         echo "Please install missing tools:"
         echo "  yum install git gcc gcc-c++ make python3"
@@ -107,7 +209,7 @@ backup_module() {
     
     if [[ ! -d "$module_path.$backup_suffix" ]]; then
         cp -r "$module_path" "$module_path.$backup_suffix"
-        echo "✅ Backed up original module to $module_path.$backup_suffix"
+        echo "Backed up original module to $module_path.$backup_suffix"
     else
         echo "ℹ️  Backup already exists: $module_path.$backup_suffix"
     fi
@@ -127,7 +229,7 @@ Node.js: $(node --version)
 Compiler: $(gcc --version 2>/dev/null | head -1 || xlc -qversion 2>/dev/null | head -1 || echo 'unknown')
 EOF
     
-    echo "✅ Marked $module_name as AIX-patched"
+    echo "Marked $module_name as AIX-patched"
 }
 
 # Clean up temporary build directories
