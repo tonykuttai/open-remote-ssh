@@ -28,6 +28,21 @@ sudo apk add bash libstdc++
 
 **AIX**
 
+VSCode Compatibility
+⚠️ IMPORTANT: This extension has been tested and verified to work with the following VSCode version only:
+```
+Version: 1.102.24914
+Commit: 9e6954323e23e2f62c1ea78348dbd1b53e5b827e
+Date: 2025-07-23T18:25:03.797Z (4 days ago)
+Electron: 35.6.0
+ElectronBuildId: undefined
+Chromium: 134.0.6998.205
+Node.js: 22.15.1
+V8: 13.4.114.21-electron.0
+OS: Darwin arm64 24.5.0
+```
+This extension is specifically designed and tested for this version. Compatibility with other VSCode versions is not guaranteed.
+
 Requirements for AIX hosts:
 
 - AIX 7.1 or later
