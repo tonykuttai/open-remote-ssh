@@ -200,10 +200,9 @@ Create or edit `~/.ssh/config`:
 Host aix-server
     HostName your-aix-server.com
     User your-username
-    Port 22
     IdentityFile ~/.ssh/id_ed25519
     ServerAliveInterval 60
-    ServerAliveCountMax 3
+    TCPKeepAlive yes
 ```
 
 ## Step 4: Connect to AIX Server
