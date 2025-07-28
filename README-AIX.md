@@ -2,7 +2,7 @@
 
 A comprehensive guide to get VSCodium remote server working on IBM AIX PowerPC systems.
 
-## 🎯 Problem Overview
+##  Problem Overview
 
 VSCodium server fails on AIX PowerPC due to several compatibility issues:
 - Missing git submodules in native Node.js modules
@@ -10,7 +10,7 @@ VSCodium server fails on AIX PowerPC due to several compatibility issues:
 - Platform detection only supporting `win32`, `darwin`, `linux`
 - Pre-compiled x86-64 native binaries incompatible with PowerPC
 
-## 🔧 Solution Steps
+##  Solution Steps
 
 ### Step 1: Set AIX-Compatible Environment Variables
 
@@ -40,7 +40,7 @@ export CFLAGS="-ftls-model=global-dynamic -fPIC -pthread"
 npm install
 
 # 4. Test the build
-node -e "const spdlog = require('./index.js'); console.log('✅ spdlog loaded successfully!');"
+node -e "const spdlog = require('./index.js'); console.log(' spdlog loaded successfully!');"
 ```
 
 ### Step 3: Fix VSCodium Platform Detection
@@ -151,31 +151,31 @@ pkill -f "vscode\|vscodium" 2>/dev/null || true
 rm -rf /tmp/*vscode* /tmp/*vscodium* 2>/dev/null || true
 
 # Reconnect from your VSCodium client
-echo "✅ Ready to reconnect from VSCodium client!"
+echo " Ready to reconnect from VSCodium client!"
 ```
 
-## 🧪 Verification Tests
+##  Verification Tests
 
 Test each module individually to ensure patches work:
 
 ```bash
 # Test deviceid
 cd ~/.vscodium-server/bin/*/node_modules/@vscode/deviceid/dist
-node -e "const deviceid = require('./index.js'); console.log('✅ deviceid OK');"
+node -e "const deviceid = require('./index.js'); console.log(' deviceid OK');"
 
 # Test storage
-node -e "const storage = require('./storage.js'); console.log('✅ storage OK');"
+node -e "const storage = require('./storage.js'); console.log(' storage OK');"
 
 # Test watchdog
 cd ~/.vscodium-server/bin/*/node_modules/native-watchdog
-node -e "const wd = require('./index.js'); wd.start(process.pid); wd.exit(0); console.log('✅ watchdog OK');"
+node -e "const wd = require('./index.js'); wd.start(process.pid); wd.exit(0); console.log(' watchdog OK');"
 
 # Test node-spdlog (if you built it)
 cd ~/path/to/node-spdlog
-node -e "const spdlog = require('./index.js'); console.log('✅ spdlog OK');"
+node -e "const spdlog = require('./index.js'); console.log(' spdlog OK');"
 ```
 
-## 🚀 Quick Setup Script
+##  Quick Setup Script
 
 Create this script for faster setup on new AIX systems:
 
@@ -185,7 +185,7 @@ Create this script for faster setup on new AIX systems:
 
 set -e
 
-echo "🔧 Setting up VSCodium for AIX PowerPC..."
+echo " Setting up VSCodium for AIX PowerPC..."
 
 # Set environment variables
 export CXXFLAGS="-ftls-model=global-dynamic -fPIC -pthread"
@@ -194,30 +194,30 @@ export CFLAGS="-ftls-model=global-dynamic -fPIC -pthread"
 # Find VSCodium server directory
 VSCODE_DIR=$(find ~/.vscodium-server ~/.vscode-server -name "node_modules" -type d 2>/dev/null | head -1)
 if [ -z "$VSCODE_DIR" ]; then
-    echo "❌ VSCodium server not found. Please connect once first."
+    echo " VSCodium server not found. Please connect once first."
     exit 1
 fi
 
-echo "📁 Found VSCodium at: $VSCODE_DIR"
+echo "File Found VSCodium at: $VSCODE_DIR"
 
 # Patch deviceid index.js
 DEVICEID_INDEX="$VSCODE_DIR/@vscode/deviceid/dist/index.js"
 if [ -f "$DEVICEID_INDEX" ]; then
-    echo "🔨 Patching deviceid index.js..."
+    echo " Patching deviceid index.js..."
     sed -i 's/process.platform !== "linux"/process.platform !== "linux" \&\& process.platform !== "aix"/g' "$DEVICEID_INDEX"
 fi
 
 # Patch deviceid storage.js
 DEVICEID_STORAGE="$VSCODE_DIR/@vscode/deviceid/dist/storage.js"
 if [ -f "$DEVICEID_STORAGE" ]; then
-    echo "🔨 Patching deviceid storage.js..."
+    echo " Patching deviceid storage.js..."
     sed -i 's/process.platform === "linux"/process.platform === "linux" || process.platform === "aix"/g' "$DEVICEID_STORAGE"
 fi
 
 # Create watchdog stub
 WATCHDOG_INDEX="$VSCODE_DIR/native-watchdog/index.js"
 if [ -f "$WATCHDOG_INDEX" ]; then
-    echo "🔨 Creating watchdog stub..."
+    echo " Creating watchdog stub..."
     cat > "$WATCHDOG_INDEX" << 'EOF'
 var hasStarted = false;
 var monitoredPid = null;
@@ -238,8 +238,8 @@ exports.exit = function(code) {
 EOF
 fi
 
-echo "✅ VSCodium AIX patches applied successfully!"
-echo "🔄 Please restart VSCodium server (disconnect and reconnect)"
+echo " VSCodium AIX patches applied successfully!"
+echo " Please restart VSCodium server (disconnect and reconnect)"
 ```
 
 ## 📋 Troubleshooting
@@ -269,7 +269,7 @@ echo "🔄 Please restart VSCodium server (disconnect and reconnect)"
 - GCC compiler with C++11 support
 - Git with submodule support
 
-## 🎯 Key Insights
+##  Key Insights
 
 1. **TLS Model**: AIX requires `global-dynamic` TLS model for shared libraries
 2. **Platform Detection**: Most Node.js modules only check for `win32`, `darwin`, `linux`
@@ -277,7 +277,7 @@ echo "🔄 Please restart VSCodium server (disconnect and reconnect)"
 4. **Git Submodules**: Critical for native modules with C++ dependencies
 5. **Graceful Degradation**: Non-critical modules can be stubbed out safely
 
-## 🤝 Contributing
+##  Contributing
 
 If you find additional compatibility issues or improvements:
 
@@ -286,7 +286,7 @@ If you find additional compatibility issues or improvements:
 3. Update this guide
 4. Share with the community
 
-## 📜 License
+##  License
 
 This guide is provided under MIT License. Use at your own risk and test thoroughly in your environment.
 
