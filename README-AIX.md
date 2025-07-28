@@ -242,7 +242,7 @@ echo " VSCodium AIX patches applied successfully!"
 echo " Please restart VSCodium server (disconnect and reconnect)"
 ```
 
-## 📋 Troubleshooting
+##  Troubleshooting
 
 ### Common Issues
 
