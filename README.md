@@ -31,6 +31,9 @@ sudo apk add bash libstdc++
 VSCode Compatibility
 
 ⚠️ IMPORTANT: This extension has been tested and verified to work with the following VSCode version only:
+
+Download and install [VSCodium.arm64.1.102.24914.dmg](https://github.com/VSCodium/vscodium/releases/download/1.102.24914/VSCodium.arm64.1.102.24914.dmg) on your local machine.
+
 ```
 Version: 1.102.24914
 Commit: 9e6954323e23e2f62c1ea78348dbd1b53e5b827e
