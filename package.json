@@ -107,25 +107,6 @@
 					"description": "**Experimental:** The name of the server binary, use this **only if** you are using a client without a corresponding server release",
 					"scope": "application",
 					"default": ""
-				},
-				"remote.SSH.enableAIXPatches": {
-					"type": "boolean",
-					"description": "Enable automatic patching of native modules for AIX compatibility. When enabled, the extension will automatically rebuild incompatible Linux native modules for AIX.",
-					"default": true,
-					"scope": "application"
-				},
-				"remote.SSH.aixPatchTimeout": {
-					"type": "number",
-					"description": "Timeout in seconds for AIX patch operations. Increase this value if you have slow build tools or network.",
-					"default": 300,
-					"scope": "application",
-					"minimum": 60
-				},
-				"remote.SSH.aixPatchDebug": {
-					"type": "boolean",
-					"description": "Enable verbose logging for AIX patch operations. Useful for debugging patch failures.",
-					"default": false,
-					"scope": "application"
 				}
 			}
 		},
@@ -366,12 +347,7 @@
 		"compile": "tsc -b",
 		"watch": "tsc -b -w",
 		"package": "npx vsce package --yarn",
-		"update-dts": "npx vscode-dts dev && npx vscode-dts main",
-		"prepare:aix": "chmod +x aix-patches/**/*.sh 2>/dev/null || true",
-		"build:aix": "npm run compile && npm run prepare:aix",
-		"test:aix": "cd aix-patches && ./apply-patches.sh ~/.vscodium-server/bin/test",
-		"clean:aix": "rm -rf aix-patches/temp-* 2>/dev/null || true",
-		"package:aix": "npm run build:aix && npx vsce package --yarn"
+		"update-dts": "npx vscode-dts dev && npx vscode-dts main"
 	},
 	"devDependencies": {
 		"@types/node": "^16.11.0",
