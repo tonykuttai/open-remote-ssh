@@ -7,8 +7,9 @@ export interface ServerInstallOptions {
     id: string;
     quality: string;
     commit: string;
-    version: string;
-    release?: string; // vscodium specific
+    version: string;      // upstream VS Code version (e.g. 1.105.1)
+    buildVersion?: string; // VSCodium build version (e.g. 1.105.17075)
+    release?: string;
     extensionIds: string[];
     envVariables: string[];
     useSocketPath: boolean;
@@ -36,7 +37,12 @@ export class ServerInstallError extends Error {
 }
 
 // Modified to point to your AIX server by default
-const DEFAULT_DOWNLOAD_URL_TEMPLATE = 'https://github.ibm.com/tony-varghese/vscodium-aix-server/releases/download/v${version}/vscodium-reh-aix-ppc64-${version}.tar.gz';
+// const DEFAULT_DOWNLOAD_URL_TEMPLATE = 'https://github.ibm.com/tony-varghese/vscodium-aix-server/releases/download/v${version}/vscodium-reh-aix-ppc64-${version}.tar.gz';
+
+// Default AIX server download (tag == version, asset == vscodium-reh-aix-ppc64-${version}.tar.gz)
+const DEFAULT_DOWNLOAD_URL_TEMPLATE =
+    'https://github.com/tonykuttai/vscodium-aix-server/releases/download/${version}/vscodium-reh-aix-ppc64-${version}.tar.gz';
+
 
 export async function installCodeServer(conn: SSHConnection, serverDownloadUrlTemplate: string | undefined, extensionIds: string[], envVariables: string[], platform: string | undefined, useSocketPath: boolean, logger: Log): Promise<ServerInstallResult> {
     let shell = 'powershell';
@@ -71,9 +77,15 @@ export async function installCodeServer(conn: SSHConnection, serverDownloadUrlTe
     const scriptId = crypto.randomBytes(12).toString('hex');
 
     const vscodeServerConfig = await getVSCodeServerConfig();
+    const buildVersion = extractBuildVersionFromTemplate(
+        vscodeServerConfig.serverDownloadUrlTemplate,
+        vscodeServerConfig.version
+    );
+
     const installOptions: ServerInstallOptions = {
         id: scriptId,
-        version: vscodeServerConfig.version,
+        version: vscodeServerConfig.version,          // 1.105.1
+        buildVersion,                                 // 1.105.17075 (parsed)
         commit: vscodeServerConfig.commit,
         quality: vscodeServerConfig.quality,
         release: vscodeServerConfig.release,
@@ -82,7 +94,10 @@ export async function installCodeServer(conn: SSHConnection, serverDownloadUrlTe
         useSocketPath,
         serverApplicationName: vscodeServerConfig.serverApplicationName,
         serverDataFolderName: vscodeServerConfig.serverDataFolderName,
-        serverDownloadUrlTemplate: serverDownloadUrlTemplate || vscodeServerConfig.serverDownloadUrlTemplate || DEFAULT_DOWNLOAD_URL_TEMPLATE,
+        serverDownloadUrlTemplate:
+            serverDownloadUrlTemplate ||
+            vscodeServerConfig.serverDownloadUrlTemplate ||
+            DEFAULT_DOWNLOAD_URL_TEMPLATE,
     };
 
     let commandOutput: { stdout: string; stderr: string };
@@ -200,14 +215,30 @@ function parseServerInstallOutput(str: string, scriptId: string): { [k: string]:
 }
 
 // Simplified AIX installation - uses pre-built server directly
-function generateBashInstallScript({ id, quality, version, commit, release, extensionIds, envVariables, useSocketPath, serverApplicationName, serverDataFolderName, serverDownloadUrlTemplate }: ServerInstallOptions) {
+function generateBashInstallScript({
+    id,
+    quality,
+    version,
+    buildVersion,
+    commit,
+    release,
+    extensionIds,
+    envVariables,
+    useSocketPath,
+    serverApplicationName,
+    serverDataFolderName,
+    serverDownloadUrlTemplate
+}: ServerInstallOptions) {
     const extensions = extensionIds.map(id => '--install-extension ' + id).join(' ');
+    const effectiveBuildVersion = buildVersion ?? version;
+
     return `
 # Server installation script
 
 TMP_DIR="\${XDG_RUNTIME_DIR:-"/tmp"}"
 
 DISTRO_VERSION="${version}"
+DISTRO_BUILD_VERSION="${effectiveBuildVersion}"
 DISTRO_COMMIT="${commit}"
 DISTRO_QUALITY="${quality}"
 DISTRO_VSCODIUM_RELEASE="${release ?? ''}"
@@ -350,15 +381,22 @@ if [[ $OS_RELEASE_ID = alpine ]]; then
     PLATFORM=$OS_RELEASE_ID
 fi
 
+# Build server download URL
 if [[ $PLATFORM == "aix" ]]; then
-    # For AIX, download directly from public GitHub
-    SERVER_DOWNLOAD_URL="https://github.com/tonykuttai/vscodium-aix-server/releases/download/v1.102.24914/vscodium-reh-aix-ppc64-1.102.24914.tar.gz"
-    
+    # For AIX, use the VSCodium build version (e.g. 1.105.17075), not the upstream VS Code version (1.105.1)
+    SERVER_DOWNLOAD_URL="https://github.com/tonykuttai/vscodium-aix-server/releases/download/$DISTRO_BUILD_VERSION/vscodium-reh-aix-ppc64-$DISTRO_BUILD_VERSION.tar.gz"
+
     echo "Downloading VSCodium server for AIX from GitHub..."
     echo "URL: $SERVER_DOWNLOAD_URL"
 else
-    # Original VSCodium URL for other platforms
-    SERVER_DOWNLOAD_URL="$(echo "${serverDownloadUrlTemplate.replace(/\$\{/g, '\\${')}" | sed "s/\\\${quality}/$DISTRO_QUALITY/g" | sed "s/\\\${version}/$DISTRO_VERSION/g" | sed "s/\\\${commit}/$DISTRO_COMMIT/g" | sed "s/\\\${os}/$PLATFORM/g" | sed "s/\\\${arch}/$SERVER_ARCH/g" | sed "s/\\\${release}/$DISTRO_VSCODIUM_RELEASE/g")"
+    # Original VSCodium/VSCODE URL for other platforms
+    SERVER_DOWNLOAD_URL="$(echo "${serverDownloadUrlTemplate.replace(/\$\{/g, '\\${')}" \
+        | sed "s/\\\${quality}/$DISTRO_QUALITY/g" \
+        | sed "s/\\\${version}/$DISTRO_VERSION/g" \
+        | sed "s/\\\${commit}/$DISTRO_COMMIT/g" \
+        | sed "s/\\\${os}/$PLATFORM/g" \
+        | sed "s/\\\${arch}/$SERVER_ARCH/g" \
+        | sed "s/\\\${release}/$DISTRO_VSCODIUM_RELEASE/g")"
 fi
 
 # Check if server script is already installed
@@ -684,4 +722,18 @@ if($SERVER_ID) {
     }
 }
 `;
+}
+
+function extractBuildVersionFromTemplate(
+    template: string | undefined,
+    fallback: string
+): string {
+    if (!template) {
+        return fallback;
+    }
+
+    // Example template:
+    // https://github.com/VSCodium/vscodium/releases/download/1.105.17075/vscodium-reh-${os}-${arch}-1.105.17075.tar.gz
+    const m = template.match(/download\/([^/]+)\//);
+    return m?.[1] ?? fallback;
 }
