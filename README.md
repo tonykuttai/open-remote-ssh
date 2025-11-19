@@ -1,6 +1,6 @@
-# Open Remote - SSH
+# AIX Remote - SSH
 
-![Open Remote SSH](https://raw.githubusercontent.com/jeanp413/open-remote-ssh/master/docs/images/open-remote-ssh.gif)
+![AIX Remote SSH](https://raw.githubusercontent.com/tonykuttai/open-remote-ssh/master/docs/images/open-remote-ssh.gif)
 
 ## SSH Host Requirements
 You can connect to a running SSH server on the following platforms.
@@ -28,37 +28,15 @@ sudo apk add bash libstdc++
 
 **AIX**
 
-VSCode Compatibility
-
-⚠️ IMPORTANT: This extension has been tested and verified to work with the following VSCode version only:
-
-Download and install [VSCodium.arm64.1.102.24914.dmg](https://github.com/VSCodium/vscodium/releases/download/1.102.24914/VSCodium.arm64.1.102.24914.dmg) on your local machine.
-
-```
-Version: 1.102.24914
-Commit: 9e6954323e23e2f62c1ea78348dbd1b53e5b827e
-Date: 2025-07-23T18:25:03.797Z (4 days ago)
-Electron: 35.6.0
-ElectronBuildId: undefined
-Chromium: 134.0.6998.205
-Node.js: 22.15.1
-V8: 13.4.114.21-electron.0
-OS: Darwin arm64 24.5.0
-```
-This extension is specifically designed and tested for this version. Compatibility with other VSCode versions is not guaranteed.
-
 Requirements for AIX hosts:
 
 - AIX 7.1 or later
-- Node.js 16+ installed on the AIX system
+- Node.js 16+ installed on the remote AIX system
 - GNU bash (AIX ksh may cause issues)
 - Sufficient permissions to write to the user's home directory
 
 Known Limitations:
-
-- Native modules (like native-watchdog) may not be compatible and will be automatically disabled
-- File watching capabilities may be limited compared to other platforms
-- Some VS Code extensions that rely on native binaries may not function
+- Some VS Code extensions that rely on native binaries may not function (like watcher)
 
 Setup Instructions:
 
@@ -85,10 +63,10 @@ Ensure the AIX user has write permissions to ~/.vscodium-server/
 
 
 Installation of the vscodium extension
-- Download the [release version of the extension here](https://github.com/tonykuttai/open-remote-ssh/releases/download/v0.0.50/open-remote-ssh-0.0.50.vsix)
+- Download the [release version of the extension here](https://github.com/tonykuttai/open-remote-ssh/releases/download/v0.0.50/aix-remote-ssh-0.0.50.vsix)
 ```
 cd /downloaded/folder
-codium --install-extension open-remote-ssh-0.0.50.vsix
+codium --install-extension aix-remote-ssh-0.0.50.vsix
 ```
 
 First Connection:
@@ -102,17 +80,6 @@ Troubleshooting AIX Issues:
 
 This is expected for native modules on AIX and can be safely ignored. We are currently adding support for more nodejs modules that vscodium uses.
 The extension will fall back to JavaScript implementations where possible
-
-Connection timeouts:
-
-Increase connection timeout in VS Code settings
-Check network connectivity and SSH configuration
-
-
-Permission issues:
-
-Ensure the user has write access to home directory
-Check that the remote user can execute Node.js
 
 
 Tested Configurations:
@@ -143,11 +110,12 @@ Complete instructions for installing and using the AIX-compatible Remote SSH ext
 - **Node.js 16+** installed at `/opt/nodejs/bin/node`
 - **User account** with appropriate permissions
 
-## Step 1: Download the Extension
+## Alternative Installation Options
+## Step 1: Download the Extension 
 
 ### Option A: Download Release Package
 1. Go to: https://github.com/tonykuttai/open-remote-ssh/releases
-2. Download the latest `.vsix` file (e.g., `open-remote-ssh-x.x.x.vsix`)
+2. Download the latest `.vsix` file (e.g., `aix-remote-ssh-x.x.x.vsix`)
 3. Save it to your local machine
 
 ### Option B: Build from Source
@@ -262,26 +230,6 @@ Open Settings (Ctrl+, or Cmd+,) and configure:
 }
 ```
 
-### For Better Search Performance:
-If you have ripgrep installed on AIX:
-```json
-{
-    "search.ripgrep.args": [
-        "--max-columns=4096",
-        "--smart-case"
-    ]
-}
-```
-
-## Step 7: Install Additional Extensions (Optional)
-
-### Install Extensions on Remote Server:
-1. **Open Extensions panel** (Ctrl+Shift+X)
-2. **Extensions will show**:
-   - **Local**: Extensions on your local machine
-   - **SSH: hostname**: Extensions on remote server
-3. **Install extensions** in the "SSH: hostname" section for server-side functionality
-
 ### Recommended Extensions for AIX Development:
 - **C/C++ Extension Pack** (for LLVM/C++ development)
 - **GitLens** (for Git integration)
@@ -347,40 +295,6 @@ ssh-add -l
    ```
 2. **Manually replace ripgrep binary** if needed (see main documentation)
 
-## Advanced Configuration
-
-### Custom Server Download URL:
-If you have your own AIX server builds:
-```json
-{
-    "remote.SSH.serverDownloadUrlTemplate": "https://your-server.com/vscodium-aix-${version}.tar.gz"
-}
-```
-
-### SSH Connection Options:
-```json
-{
-    "remote.SSH.configFile": "~/.ssh/config",
-    "remote.SSH.defaultExtensions": [
-        "ms-vscode.cpptools",
-        "ms-vscode.cmake-tools"
-    ]
-}
-```
-
-### Workspace Settings for AIX:
-Create `.vscode/settings.json` in your project:
-```json
-{
-    "terminal.integrated.shell.linux": "/bin/bash",
-    "terminal.integrated.env.linux": {
-        "TERM": "xterm-256color"
-    },
-    "files.eol": "\n",
-    "files.encoding": "utf8"
-}
-```
-
 ## Getting Help
 
 ### Log Files to Check:
@@ -433,3 +347,10 @@ sudo ln -s /your/nodejs/path/node /opt/nodejs/bin/node
 **That's it!** You should now have a fully functional Remote SSH connection to your AIX server through VSCodium.
 
 For the latest updates and issues, visit: https://github.com/tonykuttai/open-remote-ssh
+
+## Acknowledgements
+
+This extension is based on [jeanp413/open-remote-ssh](https://github.com/jeanp413/open-remote-ssh)
+and adds experimental AIX remote server support via
+[tonykuttai/vscodium-aix-server](https://github.com/tonykuttai/vscodium-aix-server).
+

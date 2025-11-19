@@ -1,10 +1,15 @@
 {
-	"name": "open-remote-ssh",
-	"displayName": "Open Remote - SSH",
+	"name": "aix-remote-ssh",
+	"displayName": "AIX Remote - SSH",
 	"description": "Use any remote machine with a SSH server as your development environment.",
-	"version": "0.0.50",
-	"publisher": "jeanp413",
-	"author": {"name": "tony varghese"},
+	"version": "0.0.51",
+	"publisher": "tonykuttai",
+	"author": {
+    "name": "Tony Varghese",
+    "email": "tonypalampalliyil@gmail.com",
+    "url": "https://github.com/tonykuttai"
+  	},
+	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/tonykuttai/open-remote-ssh.git"
@@ -14,7 +19,7 @@
 	},
 	"icon": "resources/icon.png",
 	"engines": {
-		"vscode": "^1.94.0",
+		"vscode": "^1.105.0",
 		"node": ">=16.0.0"
 	},
 	"extensionKind": [
