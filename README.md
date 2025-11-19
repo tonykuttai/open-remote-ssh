@@ -63,10 +63,11 @@ Ensure the AIX user has write permissions to ~/.vscodium-server/
 
 
 Installation of the vscodium extension
-- Download the [release version of the extension here](https://github.com/tonykuttai/open-remote-ssh/releases/download/v0.0.50/aix-remote-ssh-0.0.50.vsix)
+- Download the [release version of the extension here](https://github.com/tonykuttai/open-remote-ssh/releases/download/v0.0.52/aix-remote-ssh-0.0.52.vsix) 
+
 ```
 cd /downloaded/folder
-codium --install-extension aix-remote-ssh-0.0.50.vsix
+codium --install-extension aix-remote-ssh-0.0.52.vsix
 ```
 
 First Connection:
