@@ -60,7 +60,7 @@ which bash
 ## Installation
 
 Installation Steps
-1. Open VSCodium on your Mac. Turn on Updates and get the latest version.
+1. Open VSCodium. Turn on Updates and get the latest version.
 2. Go to Extensions view.
 3. Search for `AIX Remote - SSH` or `tonykuttai.aix-remote-ssh`
 4. Install the extension
