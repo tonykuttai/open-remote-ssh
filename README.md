@@ -65,7 +65,7 @@ Installation Steps
 3. Search for `AIX Remote - SSH` or `tonykuttai.aix-remote-ssh`
 4. Install the extension
 5. Install shell command in PATH: Open Command Palette and run Shell Command: Install `codium` command in `PATH`. Close VSCodium.
-5. Always start VSCodium with the following flags to enable proposed API on your Host terminal:
+6. Always start VSCodium with the following flags to enable proposed API on your Host terminal:
 
 `codium --enable-proposed-api tonykuttai.aix-remote-ssh`
 
