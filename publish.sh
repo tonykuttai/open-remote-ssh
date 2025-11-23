@@ -6,3 +6,8 @@ yarn compile
 npx vsce package --yarn
 
 npx ovsx publish -p  ovsxp_a3e6ad0a-4128-4662-baf5-6f56734e73a5
+
+
+#  Publish the release to github
+# gh release create v0.0.53 aix-remote-ssh-0.0.53.vsix --title "AIX Remote SSH v0.0.53" --notes "Modified the readme"
+# gh release create v0.0.55 aix-remote-ssh-0.0.55.vsix --title "AIX Remote SSH v0.0.55" --notes ""

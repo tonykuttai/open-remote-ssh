@@ -70,12 +70,12 @@ Installation Steps
 `codium --enable-proposed-api tonykuttai.aix-remote-ssh`
 
 
-Alternate Manual Installation of the vscodium extension
-- Download the [release version of the extension here](https://github.com/tonykuttai/open-remote-ssh/releases/download/v0.0.52/aix-remote-ssh-0.0.52.vsix) 
+(Optional) Alternate Manual Installation of the vscodium extension
+- Download the [release version of the extension here](https://github.com/tonykuttai/open-remote-ssh/releases/download/v0.0.55/aix-remote-ssh-0.0.55.vsix) 
 
 ```
 cd /downloaded/folder
-codium --install-extension aix-remote-ssh-0.0.52.vsix
+codium --install-extension aix-remote-ssh-0.0.55.vsix
 ```
 
 ## Open VScodium 
@@ -83,6 +83,9 @@ codium --install-extension aix-remote-ssh-0.0.52.vsix
 Always start VSCodium with the following flags to enable proposed API on your Host terminal:
 
 `codium --enable-proposed-api tonykuttai.aix-remote-ssh`
+
+---
+# Optional Steps Configuration
 
 ## SSH configuration file
 
