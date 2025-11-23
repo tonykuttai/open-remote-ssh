@@ -182,9 +182,7 @@ Host aix-server
 ### Recommended Extensions for AIX Development:
 - **C/C++ Extension Pack** (for LLVM/C++ development)
 - **GitLens** (for Git integration)
-- **Bracket Pair Colorizer** (for code readability)
-- **Path Intellisense** (for file path completion)
-
+- **clangd** (for code navigation, you need to install clangd server for AIX seperately)
 
 ## Getting Help
 

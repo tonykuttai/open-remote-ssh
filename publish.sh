@@ -10,4 +10,4 @@ npx ovsx publish -p  <github token>
 
 #  Publish the release to github
 # gh release create v0.0.53 aix-remote-ssh-0.0.53.vsix --title "AIX Remote SSH v0.0.53" --notes "Modified the readme"
-gh release create v0.0.57 aix-remote-ssh-0.0.57.vsix --title "AIX Remote SSH v0.0.57" --notes ""
+gh release create v0.0.58 aix-remote-ssh-0.0.58.vsix --title "AIX Remote SSH v0.0.58" --notes ""
