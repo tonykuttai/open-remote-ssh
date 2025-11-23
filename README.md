@@ -55,14 +55,22 @@ which bash
 # If not available, install GNU bash
 # This may require installing from AIX Toolbox or building from source
 ```
+---
 
-Configure SSH connection:
+## Installation
 
-Use standard SSH configuration
-Ensure the AIX user has write permissions to ~/.vscodium-server/
+Installation Steps
+1. Open VSCodium on your Mac. Turn on Updates and get the latest version.
+2. Go to Extensions view.
+3. Search for `AIX Remote - SSH` or `tonykuttai.aix-remote-ssh`
+4. Install the extension
+5. Install shell command in PATH: Open Command Palette and run Shell Command: Install `codium` command in `PATH`. Close VSCodium.
+5. Always start VSCodium with the following flags to enable proposed API on your Host terminal:
+
+`codium --enable-proposed-api tonykuttai.aix-remote-ssh`
 
 
-Installation of the vscodium extension
+Alternate Manual Installation of the vscodium extension
 - Download the [release version of the extension here](https://github.com/tonykuttai/open-remote-ssh/releases/download/v0.0.52/aix-remote-ssh-0.0.52.vsix) 
 
 ```
@@ -70,29 +78,15 @@ cd /downloaded/folder
 codium --install-extension aix-remote-ssh-0.0.52.vsix
 ```
 
-First Connection:
+## Open VScodium 
 
-The initial connection may take longer as the remote extension host is downloaded and configured
-If you encounter module loading errors, these are typically non-fatal and the connection should still work
+Always start VSCodium with the following flags to enable proposed API on your Host terminal:
 
-Troubleshooting AIX Issues:
-
-`Error: "Cannot load module ... does not have a valid format"`
-
-This is expected for native modules on AIX and can be safely ignored. We are currently adding support for more nodejs modules that vscodium uses.
-The extension will fall back to JavaScript implementations where possible
-
-
-Tested Configurations:
-
-- AIX 7.2 with Node.js 16.x
-- AIX 7.3 with Node.js 18.x
-
-For additional AIX-specific issues, please check the Issues section or create a new issue with the aix label.
+`codium --enable-proposed-api tonykuttai.aix-remote-ssh`
 
 ## SSH configuration file
 
-[OpenSSH](https://www.openssh.com/) supports using a [configuration file](https://linuxize.com/post/using-the-ssh-config-file/) to store all your different SSH connections. To use an SSH config file, run the `Remote-SSH: Open SSH Configuration File...` command.
+[OpenSSH](https://www.openssh.com/) supports using a [configuration file](https://linuxize.com/post/using-the-ssh-config-file/) to store all your different SSH connections. To use an SSH config file, run the `Remote-SSH: Open SSH Configuration File...` command from VScodium command palette.
 
 
 ## AIX Remote SSH Extension Setup Guide
@@ -111,41 +105,7 @@ Complete instructions for installing and using the AIX-compatible Remote SSH ext
 - **Node.js 16+** installed at `/opt/nodejs/bin/node`
 - **User account** with appropriate permissions
 
-## Alternative Installation Options
-## Step 1: Download the Extension 
-
-### Option A: Download Release Package
-1. Go to: https://github.com/tonykuttai/open-remote-ssh/releases
-2. Download the latest `.vsix` file (e.g., `aix-remote-ssh-x.x.x.vsix`)
-3. Save it to your local machine
-
-### Option B: Build from Source
-```bash
-git clone https://github.com/tonykuttai/open-remote-ssh.git
-cd open-remote-ssh
-npm install
-npm run package
-# This creates a .vsix file in the directory
-```
-
-## Step 2: Install the Extension in VSCodium
-
-### Method 1: Using VSCodium Interface
-1. **Open VSCodium**
-2. **Open Extensions panel** (Ctrl+Shift+X or Cmd+Shift+X)
-3. **Click the "..." menu** in the Extensions panel
-4. **Select "Install from VSIX..."**
-5. **Browse and select** the downloaded `.vsix` file
-6. **Click "Install"**
-7. **Restart VSCodium** when prompted
-
-### Method 2: Using Command Line
-```bash
-# Replace with your actual path to the .vsix file
-codium --install-extension open-remote-ssh-x.x.x.vsix
-```
-
-## Step 3: Configure SSH Connection
+## Configure SSH Connection
 
 ### Setup SSH Key Authentication (Recommended)
 1. **Generate SSH key** (if you don't have one):
@@ -174,7 +134,7 @@ Host aix-server
     TCPKeepAlive yes
 ```
 
-## Step 4: Connect to AIX Server
+## Connect to AIX Server
 
 ### Using VSCodium Interface:
 1. **Open Command Palette** (Ctrl+Shift+P or Cmd+Shift+P)
@@ -198,7 +158,7 @@ Host aix-server
 4. **Wait for installation** to complete (may take 2-5 minutes on first connection)
 5. **Connection established** - you'll see "SSH: hostname" in the bottom-left corner
 
-## Step 5: Verify Installation
+## Verify Installation
 
 ### Check Connection Status:
 - **Bottom-left corner** should show: `SSH: your-aix-server`
@@ -216,85 +176,12 @@ Host aix-server
    uname -a
    ```
 
-## Step 6: Configure for Optimal Performance (Optional)
-
-### Recommended VSCodium Settings:
-Open Settings (Ctrl+, or Cmd+,) and configure:
-
-```json
-{
-    "remote.SSH.remoteServerListenOnSocket": true,
-    "remote.SSH.connectTimeout": 60,
-    "remote.SSH.serverInstallTimeout": 300,
-    "search.useRipgrep": true,
-    "terminal.integrated.defaultProfile.linux": "bash"
-}
-```
-
 ### Recommended Extensions for AIX Development:
 - **C/C++ Extension Pack** (for LLVM/C++ development)
 - **GitLens** (for Git integration)
 - **Bracket Pair Colorizer** (for code readability)
 - **Path Intellisense** (for file path completion)
 
-## Troubleshooting
-
-### Connection Issues:
-
-#### "Could not establish connection"
-```bash
-# Test SSH manually
-ssh -v username@your-aix-server.com
-
-# Check SSH config
-cat ~/.ssh/config
-
-# Verify SSH key
-ssh-add -l
-```
-
-#### "Server installation failed"
-1. **Check Node.js** on AIX server:
-   ```bash
-   /opt/nodejs/bin/node --version
-   ```
-2. **Check permissions**:
-   ```bash
-   ls -la ~/.vscodium-server/
-   ```
-3. **Clear server cache**:
-   ```bash
-   rm -rf ~/.vscodium-server/
-   ```
-
-#### "Extension host terminated unexpectedly"
-1. **Check server logs**:
-   ```bash
-   cat ~/.vscodium-server/.*.log
-   ```
-2. **Restart connection**:
-   - Disconnect from server
-   - Close VSCodium
-   - Reopen and reconnect
-
-### Performance Issues:
-
-#### Slow file operations
-1. **Increase timeouts** in settings:
-   ```json
-   {
-       "remote.SSH.connectTimeout": 120,
-       "remote.SSH.serverInstallTimeout": 600
-   }
-   ```
-
-### Search Not Working:
-1. **Check if ripgrep is working**:
-   ```bash
-   which rg
-   rg --version
-   ```
-2. **Manually replace ripgrep binary** if needed (see main documentation)
 
 ## Getting Help
 
@@ -316,6 +203,9 @@ ssh-add -l
 ```
 
 ### Reporting Issues:
+
+[Report the issues here](https://github.com/tonykuttai/open-remote-ssh/issues)
+
 When reporting issues, include:
 1. **AIX version**: `oslevel -s`
 2. **Node.js version**: `/opt/nodejs/bin/node --version`
