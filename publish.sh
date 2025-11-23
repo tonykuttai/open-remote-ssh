@@ -5,7 +5,7 @@
 yarn compile
 npx vsce package --yarn
 
-npx ovsx publish -p  ovsxp_a3e6ad0a-4128-4662-baf5-6f56734e73a5
+npx ovsx publish -p  <github token>
 
 
 #  Publish the release to github
