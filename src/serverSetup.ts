@@ -41,7 +41,7 @@ export class ServerInstallError extends Error {
 
 // Default AIX server download (tag == version, asset == vscodium-reh-aix-ppc64-${version}.tar.gz)
 const DEFAULT_DOWNLOAD_URL_TEMPLATE =
-    'https://github.com/tonykuttai/vscodium-aix-server/releases/download/${version}/vscodium-reh-aix-ppc64-${version}.tar.gz';
+    'https://github.com/tonykuttai/vscodium-aix-server/releases/download/${buildVersion}/vscodium-reh-aix-ppc64-${buildVersion}.tar.gz';
 
 
 export async function installCodeServer(conn: SSHConnection, serverDownloadUrlTemplate: string | undefined, extensionIds: string[], envVariables: string[], platform: string | undefined, useSocketPath: boolean, logger: Log): Promise<ServerInstallResult> {
@@ -77,10 +77,23 @@ export async function installCodeServer(conn: SSHConnection, serverDownloadUrlTe
     const scriptId = crypto.randomBytes(12).toString('hex');
 
     const vscodeServerConfig = await getVSCodeServerConfig();
-    const buildVersion = extractBuildVersionFromTemplate(
+    let buildVersion = extractBuildVersionFromTemplate(
         vscodeServerConfig.serverDownloadUrlTemplate,
         vscodeServerConfig.version
     );
+
+    // If platform is AIX, override with latest GitHub release
+    if (platform === 'aix' || !platform) {
+        const latestAIXVersion = await getLatestAIXServerVersion();
+        if (latestAIXVersion) {
+            logger.trace(`Using latest AIX server version: ${latestAIXVersion}`);
+            buildVersion = latestAIXVersion;
+        } else {
+            // Fallback to a known-good version if API call fails
+            buildVersion = '1.106.27818';
+            logger.trace(`Failed to fetch latest AIX version, using fallback: ${buildVersion}`);
+        }
+    }
 
     const installOptions: ServerInstallOptions = {
         id: scriptId,
@@ -447,6 +460,12 @@ if [[ ! -f $SERVER_SCRIPT ]]; then
         if [[ -f "$SERVER_DIR/bin/codium-server" ]]; then
             chmod +x "$SERVER_DIR/bin/codium-server"
             echo "AIX server wrapper made executable"
+
+            # Create symlink if VS Code expects code-server but we have codium-server
+            if [[ "$SERVER_APP_NAME" == "code-server" && ! -f "$SERVER_DIR/bin/code-server" ]]; then
+                ln -sf "$SERVER_DIR/bin/codium-server" "$SERVER_DIR/bin/code-server"
+                echo "Created symlink: code-server -> codium-server"
+            fi
         fi
         
         # Verify Node.js is available for AIX
@@ -736,4 +755,16 @@ function extractBuildVersionFromTemplate(
     // https://github.com/VSCodium/vscodium/releases/download/1.105.17075/vscodium-reh-${os}-${arch}-1.105.17075.tar.gz
     const m = template.match(/download\/([^/]+)\//);
     return m?.[1] ?? fallback;
+}
+
+async function getLatestAIXServerVersion(): Promise<string | null> {
+    try {
+        const response = await fetch('https://api.github.com/repos/tonykuttai/vscodium-aix-server/releases/latest');
+        if (!response.ok) return null;
+        
+        const data = await response.json();
+        return data.tag_name; // e.g., "1.106.27818"
+    } catch (error) {
+        return null;
+    }
 }
