@@ -473,6 +473,36 @@ if [[ ! -f $SERVER_SCRIPT ]]; then
             echo "Warning: Node.js not found at /opt/nodejs/bin/node"
             echo "AIX server may not start properly"
         fi
+
+BASHRC="$HOME/.bashrc"
+SNIPPET_MARKER="# === VSCodium remote-cli PATH setup ==="
+
+# Create .bashrc if it doesn't exist
+if [ ! -f "$BASHRC" ]; then
+  touch "$BASHRC"
+fi
+
+# Add snippet only if it's not already present
+if ! grep -Fq "$SNIPPET_MARKER" "$BASHRC"; then
+  cat >> "$BASHRC" <<'EOF'
+
+# === VSCodium remote-cli PATH setup ===
+# Add all matching remote-cli directories to PATH
+if [ -d "$HOME/.vscodium-server/bin" ]; then
+  for dir in "$HOME"/.vscodium-server/bin/*/bin/remote-cli; do
+      if [ -d "$dir" ]; then
+          PATH="$PATH:$dir"
+      fi
+  done
+  export PATH
+fi
+# === End VSCodium remote-cli PATH setup ===
+
+EOF
+  echo "remote-cli PATH snippet added to $BASHRC"
+else
+  echo "Snippet already present in $BASHRC, not adding again."
+fi
     fi
 
     if [[ ! -f $SERVER_SCRIPT ]]; then
