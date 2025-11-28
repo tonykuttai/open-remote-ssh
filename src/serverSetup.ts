@@ -84,14 +84,28 @@ export async function installCodeServer(conn: SSHConnection, serverDownloadUrlTe
 
     // If platform is AIX, override with latest GitHub release
     if (platform === 'aix' || !platform) {
-        const latestAIXVersion = await getLatestAIXServerVersion();
-        if (latestAIXVersion) {
-            logger.trace(`Using latest AIX server version: ${latestAIXVersion}`);
-            buildVersion = latestAIXVersion;
+        logger.trace(`serverDownloadUrlTemplate: ${vscodeServerConfig.serverDownloadUrlTemplate}`);
+        // Extract build version from the client's download URL template
+        const clientBuildVersion = extractBuildVersionFromTemplate(
+            vscodeServerConfig.serverDownloadUrlTemplate,
+            vscodeServerConfig.version
+        );
+        
+        if (clientBuildVersion && clientBuildVersion !== vscodeServerConfig.version) {
+            // We successfully extracted a build version different from the base version
+            buildVersion = clientBuildVersion;
+            logger.trace(`Using client's VSCodium build version for AIX: ${buildVersion}`);
         } else {
-            // Fallback to a known-good version if API call fails
-            buildVersion = '1.106.27818';
-            logger.trace(`Failed to fetch latest AIX version, using fallback: ${buildVersion}`);
+            // Fallback: try to fetch latest from GitHub
+            const latestAIXVersion = await getLatestAIXServerVersion();
+            if (latestAIXVersion) {
+                logger.trace(`Using latest AIX server version from GitHub: ${latestAIXVersion}`);
+                buildVersion = latestAIXVersion;
+            } else {
+                // Last resort fallback
+                buildVersion = '1.106.27818';
+                logger.trace(`Failed to determine version, using fallback: ${buildVersion}`);
+            }
         }
     }
 
