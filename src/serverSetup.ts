@@ -486,6 +486,9 @@ if [[ ! -f $SERVER_SCRIPT ]]; then
         if [[ ! -x "/opt/nodejs/bin/node" ]]; then
             echo "Warning: Node.js not found at /opt/nodejs/bin/node"
             echo "AIX server may not start properly"
+        else
+            echo "Node.js found at /opt/nodejs/bin/node"
+            /opt/nodejs/bin/node --version
         fi
 
 BASHRC="$HOME/.bashrc"
