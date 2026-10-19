@@ -62,14 +62,6 @@ Installation Steps
 5. Enable the proposed API the extension needs (see [Enabling the proposed API](#enabling-the-proposed-api)) and restart VSCodium.
 
 
-(Optional) Alternate Manual Installation of the vscodium extension
-- Download the `.vsix` from the [latest release](https://github.com/tonykuttai/open-remote-ssh/releases/latest)
-
-```
-cd /downloaded/folder
-codium --install-extension aix-remote-ssh-<version>.vsix
-```
-
 ## Enabling the proposed API
 
 Like upstream open-remote-ssh, this extension uses the `resolvers` and `contribViewsRemote` API proposals,
