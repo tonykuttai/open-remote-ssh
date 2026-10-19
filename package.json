@@ -2,7 +2,7 @@
   "name": "aix-remote-ssh",
   "displayName": "AIX Remote - SSH",
   "description": "Open Remote - SSH with support for IBM AIX remotes. Use any remote machine with an SSH server as your development environment.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Tony Varghese",
     "url": "https://github.com/tonykuttai"

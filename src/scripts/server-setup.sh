@@ -63,6 +63,16 @@ print_install_results_and_exit() {
   exit 0
 }
 
+# Stop a server and everything it spawned. The launcher may be a shell wrapper
+# around node (no exec), so the recorded pid is the wrapper: walk the tree.
+kill_server_tree() {
+  local p=$1 c
+  for c in $(ps -o pid= -o ppid= -A 2>/dev/null | awk -v P="$p" '$2 == P { print $1 }'); do
+    kill_server_tree "$c"
+  done
+  kill "$p" 2>/dev/null || true
+}
+
 # Report a fatal install problem: echoed for the log and returned to the
 # extension, which shows it in the connection error dialog.
 fail_install() {
@@ -206,6 +216,30 @@ SERVER_DOWNLOAD_URL="$(echo "%%SERVER_DOWNLOAD_URL_TEMPLATE%%" | sed "s/\${quali
 if ! validate_installed_commit; then
   echo "Installed server commit $(get_installed_commit) does not match $DISTRO_COMMIT, reinstalling"
   rm -rf "$SERVER_DIR"/*
+fi
+
+# AIX: the server repo republishes fixed packages under the same tag and commit. Reinstall when
+# the published build (release manifest "built") is newer than the installed one
+# (aix-build-manifest.json). Empty AIX_RELEASE_BUILT (no manifest, no network) means keep what is there.
+AIX_RELEASE_BUILT="%%AIX_RELEASE_BUILT%%"
+if [[ $PLATFORM == "aix" && -n $AIX_RELEASE_BUILT && -f $SERVER_SCRIPT ]]; then
+  INSTALLED_BUILT="$(sed -n 's/.*"built"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$SERVER_DIR/aix-build-manifest.json" 2>/dev/null | head -n 1)"
+  if [[ -z $INSTALLED_BUILT || "$INSTALLED_BUILT" < "$AIX_RELEASE_BUILT" ]]; then
+    echo "Installed AIX server build ${INSTALLED_BUILT:-unknown} is older than the published build $AIX_RELEASE_BUILT, reinstalling"
+    if [[ -f $SERVER_PIDFILE ]]; then
+      OLD_SERVER_PID="$(cat "$SERVER_PIDFILE")"
+      if [[ -n $OLD_SERVER_PID ]] && kill -0 "$OLD_SERVER_PID" 2>/dev/null; then
+        kill_server_tree "$OLD_SERVER_PID"
+        sleep 2
+      fi
+    fi
+    # Anything still serving from this directory (e.g. a node orphaned by an older launcher)
+    for p in $(ps -o pid= -o args= -A 2>/dev/null | grep -F "$SERVER_DIR/" | grep -E "server-main\.js|$SERVER_SCRIPT" | grep -v grep | awk '{print $1}'); do
+      kill_server_tree "$p"
+    done
+    rm -f "$SERVER_PIDFILE" "$SERVER_TOKENFILE"
+    rm -rf "$SERVER_DIR"/*
+  fi
 fi
 
 # Check if server script is already installed
@@ -358,6 +392,17 @@ if [[ -f $SERVER_PIDFILE ]]; then
   SERVER_RUNNING_PROCESS="$( (ps -p "$SERVER_PID" -o pid,args 2>/dev/null || ps -o pid,args) | grep "$SERVER_PID" | grep -F "$SERVER_DIR/" )"
 else
   SERVER_RUNNING_PROCESS="$( (ps -o pid,args -A || ps -o pid,args) | grep -F "$SERVER_DIR/" | grep -E "server-main\.js|$SERVER_SCRIPT" | grep -v grep )"
+fi
+
+# A running server we have no token for cannot be used: replace it.
+if [[ -n $SERVER_RUNNING_PROCESS && ! -f $SERVER_TOKENFILE ]]; then
+  echo "Server is running without a token file, restarting it"
+  for p in $(echo "$SERVER_RUNNING_PROCESS" | awk '{print $1}'); do
+    kill_server_tree "$p"
+  done
+  sleep 2
+  rm -f "$SERVER_PIDFILE"
+  SERVER_RUNNING_PROCESS=
 fi
 
 if [[ -z $SERVER_RUNNING_PROCESS ]]; then
