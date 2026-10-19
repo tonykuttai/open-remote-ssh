@@ -1,3 +1,10 @@
+## 0.0.63
+- AIX: the server package bundles its own Node.js, so Node.js no longer needs to be installed on the host (#5)
+- AIX: preflight check for bash, tar/gzip, wget/curl, Toolbox libstdc++ and free disk space; failures are reported with the reason in the connection error dialog (#1)
+- AIX: run `codium-server --version` right after extraction and report precisely when the server cannot start
+- AIX: fall back to `gzip -dc | tar` when GNU tar is not installed
+- Resolve `bash` through `sh` before running the install script so hosts whose login shell lacks it on PATH get a clear error
+
 ## 0.0.48
 - Support `%n` in ProxyCommand
 - fix: add missing direct @types/ssh2-stream dependency (#177)
