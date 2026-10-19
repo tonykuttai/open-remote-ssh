@@ -14,3 +14,8 @@ webpack.config.js
 package.insiders.json
 vscode.d.ts
 vscode.proposed.*.d.ts
+*.vsix
+eslint.config.mjs
+README-AIX.md
+tsconfig.tsbuildinfo
+publish.sh
