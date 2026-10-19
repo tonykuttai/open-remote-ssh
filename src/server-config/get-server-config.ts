@@ -11,6 +11,7 @@ export async function getServerConfig(): Promise<IServerConfig> {
 
     return {
         version: vscode.version.replace('-insider',''),
+        buildVersion: typeof productJson.version === 'string' ? productJson.version : undefined,
         commit: productJson.commit as string,
         quality: productJson.quality as string,
         release: productJson.release as string || '',

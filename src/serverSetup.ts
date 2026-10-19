@@ -1,4 +1,4 @@
-import type { ServerValidation, ServerVersion } from './server-config/types';
+import type { IServerConfig, ServerValidation, ServerVersion } from './server-config/types';
 
 import * as crypto from 'crypto';
 import * as fs from 'fs';
@@ -118,6 +118,18 @@ const DEFAULT_DOWNLOAD_URL_TEMPLATE = 'https://github.com/VSCodium/vscodium/rele
 // VSCodium does not publish an AIX server; tonykuttai/vscodium-aix-server builds one per VSCodium release
 // (tag == VSCodium version, Node.js bundled). A user-provided remote.SSH.serverDownloadUrlTemplate still wins.
 export const AIX_DOWNLOAD_URL_TEMPLATE = 'https://github.com/tonykuttai/vscodium-aix-server/releases/download/${version}${release}/vscodium-reh-${os}-${arch}-${version}${release}.tar.gz';
+
+/**
+ * AIX server releases are tagged with the VSCodium build version (1.140.06880). vscode.version only
+ * carries the upstream version (1.140.0) and VSCodium's product.json has no `release`, so bake
+ * product.json's own version into the template, the way VSCodium bakes it into its template.
+ */
+export function aixDownloadUrlTemplate(config: Pick<IServerConfig, 'version' | 'buildVersion' | 'release'>): string {
+    const build = config.buildVersion && /^\d+\.\d+\.\d+$/.test(config.buildVersion)
+        ? config.buildVersion
+        : `${config.version}${config.release ?? ''}`;
+    return AIX_DOWNLOAD_URL_TEMPLATE.replace(/\$\{version\}\$\{release\}/g, build);
+}
 
 export type Platform = 'aix' | 'alpine' | 'darwin' | 'dragonfly' | 'freebsd' | 'linux' | 'windows';
 export type Architecture = 'arm64' | 'armhf' | 'loong64' | 'ppc64' | 'ppc64le' | 'riscv64' | 's390x' | 'x64';
@@ -259,7 +271,7 @@ export async function installCodeServer(
 
     // Get the version and release
     const serverDownloadUrlTemplateFinal = serverDownloadUrlTemplate
-        || (detectedPlatform === 'aix' ? AIX_DOWNLOAD_URL_TEMPLATE : vscodeServerConfig.serverDownloadUrlTemplate)
+        || (detectedPlatform === 'aix' ? aixDownloadUrlTemplate(vscodeServerConfig) : vscodeServerConfig.serverDownloadUrlTemplate)
         || DEFAULT_DOWNLOAD_URL_TEMPLATE;
     const bestRelease: IRelease = await fetchRelease(serverDownloadUrlTemplateFinal, vscodeServerConfig.version, vscodeServerConfig.release, serverVersion, logger);
 

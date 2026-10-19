@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { detectPlatform, parseKernelName, parseMachineArch, ServerInstallError } from '../src/serverSetup';
+import { aixDownloadUrlTemplate, detectPlatform, parseKernelName, parseMachineArch, ServerInstallError } from '../src/serverSetup';
 
 type ExecResult = { stdout: string; stderr: string };
 
@@ -221,5 +221,17 @@ describe('detectPlatform', () => {
 
             expect(result).to.eql({ detectedPlatform: 'darwin', detectedArch: 'arm64', detectedShell: 'bash' });
         });
+    });
+});
+
+describe('aixDownloadUrlTemplate', () => {
+    it('uses the VSCodium build version from product.json', () => {
+        expect(aixDownloadUrlTemplate({ version: '1.140.0', buildVersion: '1.140.06880', release: '' }))
+            .to.eql('https://github.com/tonykuttai/vscodium-aix-server/releases/download/1.140.06880/vscodium-reh-${os}-${arch}-1.140.06880.tar.gz');
+    });
+
+    it('falls back to version + release when product.json has no usable version', () => {
+        expect(aixDownloadUrlTemplate({ version: '1.140.0', buildVersion: undefined, release: '6880' }))
+            .to.eql('https://github.com/tonykuttai/vscodium-aix-server/releases/download/1.140.06880/vscodium-reh-${os}-${arch}-1.140.06880.tar.gz');
     });
 });
