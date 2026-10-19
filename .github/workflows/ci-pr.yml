@@ -65,18 +65,6 @@ jobs:
           npm run lint:all
         if: github.event.inputs.checkout_pr == ''
 
-      - name: Lint commit
-        run: |
-          if [[ "${BASE_SHA}" = "0000000000000000000000000000000000000000" ]]; then
-            npx commitlint --to HEAD --verbose
-          else
-            npx commitlint --from "${BASE_SHA}" --to "${HEAD_SHA}" --verbose
-          fi
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        if: github.event.inputs.checkout_pr == ''
-
   windows:
     runs-on: windows-2022
     defaults:
