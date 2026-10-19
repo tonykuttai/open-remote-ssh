@@ -59,10 +59,7 @@ Installation Steps
 2. Go to Extensions view.
 3. Search for `AIX Remote - SSH` or `tonykuttai.aix-remote-ssh`
 4. Install the extension
-5. Install shell command in PATH: Open Command Palette and run Shell Command: Install `codium` command in `PATH`. Close VSCodium.
-6. Always start VSCodium with the following flags to enable proposed API on your Host terminal:
-
-`codium --enable-proposed-api tonykuttai.aix-remote-ssh`
+5. Enable the proposed API the extension needs (see [Enabling the proposed API](#enabling-the-proposed-api)) and restart VSCodium.
 
 
 (Optional) Alternate Manual Installation of the vscodium extension
@@ -73,9 +70,25 @@ cd /downloaded/folder
 codium --install-extension aix-remote-ssh-<version>.vsix
 ```
 
-## Open VScodium 
+## Enabling the proposed API
 
-Always start VSCodium with the following flags to enable proposed API on your Host terminal:
+Like upstream open-remote-ssh, this extension uses the `resolvers` and `contribViewsRemote` API proposals,
+which VSCodium only enables for the extension ids listed in its `product.json`. Until `tonykuttai.aix-remote-ssh`
+is on that list, enable it once in `argv.json`, the runtime arguments file that VSCodium reads at startup:
+
+1. Open the Command Palette and run **Preferences: Configure Runtime Arguments**.
+2. Add the extension id and save:
+   ```jsonc
+   {
+       "enable-proposed-api": ["tonykuttai.aix-remote-ssh"]
+   }
+   ```
+3. Restart VSCodium.
+
+If the proposal is not enabled, the extension shows an error at startup with an **Open argv.json** button that
+takes you to step 2.
+
+Alternatively, start VSCodium from a terminal with the flag every time:
 
 `codium --enable-proposed-api tonykuttai.aix-remote-ssh`
 
