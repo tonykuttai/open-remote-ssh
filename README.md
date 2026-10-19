@@ -85,8 +85,9 @@ is on that list, enable it once in `argv.json`, the runtime arguments file that 
    ```
 3. Restart VSCodium.
 
-If the proposal is not enabled, the extension shows an error at startup with an **Open argv.json** button that
-takes you to step 2.
+If the proposal is not enabled, the extension shows an error dialog shortly after VSCodium starts, with an
+**Open argv.json** button that takes you to step 2. If you already have an `"enable-proposed-api"` entry for
+another extension (for example `jeanp413.open-remote-ssh`), add `tonykuttai.aix-remote-ssh` to that list.
 
 Alternatively, start VSCodium from a terminal with the flag every time:
 

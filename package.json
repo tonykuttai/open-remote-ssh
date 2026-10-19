@@ -37,6 +37,7 @@
 	],
 	"api": "none",
 	"activationEvents": [
+		"onStartupFinished",
 		"onCommand:openremotessh.openEmptyWindow",
 		"onCommand:openremotessh.openEmptyWindowInCurrentWindow",
 		"onCommand:openremotessh.openConfigFile",
