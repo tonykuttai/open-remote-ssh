@@ -28,8 +28,9 @@ The server bundles its own Node.js, so Node.js is not needed on the host. Instal
 dnf install bash tar gzip wget libstdc++ libgcc
 ```
 
-A writable home directory with about 500 MB free is required. No root access is needed; the server
-is installed under `~/.vscodium-server`.
+The server is installed under `~/.vscodium-server`, so no root access is needed. Each installed server
+version takes about 350 MB (most of it the bundled Node.js), and the first install needs about 450 MB
+free while the 100 MB download is being unpacked.
 
 The extension checks these before downloading anything and shows what is missing in the connection error.
 
