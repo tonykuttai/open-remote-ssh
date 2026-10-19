@@ -351,9 +351,13 @@ fi
 # Try to find if server is already running
 if [[ -f $SERVER_PIDFILE ]]; then
   SERVER_PID="$(cat $SERVER_PIDFILE)"
-  SERVER_RUNNING_PROCESS="$( ps -o pid,args | grep $SERVER_PID | grep $SERVER_SCRIPT )"
+  # ps -p: POSIX, and the only form that sees a process started from another
+  # ssh session on AIX (plain `ps -o pid,args` lists the current terminal only).
+  # Match on the server directory: launchers that exec node (AIX) leave no
+  # "bin/<app>-server" in the arguments, only "<dir>/out/server-main.js".
+  SERVER_RUNNING_PROCESS="$( (ps -p "$SERVER_PID" -o pid,args 2>/dev/null || ps -o pid,args) | grep "$SERVER_PID" | grep -F "$SERVER_DIR/" )"
 else
-  SERVER_RUNNING_PROCESS="$( (ps -o pid,args -A || ps -o pid,args) | grep $SERVER_SCRIPT | grep -v grep )"
+  SERVER_RUNNING_PROCESS="$( (ps -o pid,args -A || ps -o pid,args) | grep -F "$SERVER_DIR/" | grep -E "server-main\.js|$SERVER_SCRIPT" | grep -v grep )"
 fi
 
 if [[ -z $SERVER_RUNNING_PROCESS ]]; then
