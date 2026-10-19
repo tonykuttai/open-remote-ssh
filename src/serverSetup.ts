@@ -115,6 +115,9 @@ export class ServerInstallError extends Error {
 }
 
 const DEFAULT_DOWNLOAD_URL_TEMPLATE = 'https://github.com/VSCodium/vscodium/releases/download/${version}.${release}/vscodium-reh-${os}-${arch}-${version}.${release}.tar.gz';
+// VSCodium does not publish an AIX server; tonykuttai/vscodium-aix-server builds one per VSCodium release
+// (tag == VSCodium version, Node.js bundled). A user-provided remote.SSH.serverDownloadUrlTemplate still wins.
+export const AIX_DOWNLOAD_URL_TEMPLATE = 'https://github.com/tonykuttai/vscodium-aix-server/releases/download/${version}${release}/vscodium-reh-${os}-${arch}-${version}${release}.tar.gz';
 
 export type Platform = 'aix' | 'alpine' | 'darwin' | 'dragonfly' | 'freebsd' | 'linux' | 'windows';
 export type Architecture = 'arm64' | 'armhf' | 'loong64' | 'ppc64' | 'ppc64le' | 'riscv64' | 's390x' | 'x64';
@@ -255,7 +258,9 @@ export async function installCodeServer(
     const vscodeServerConfig = await getServerConfig();
 
     // Get the version and release
-    const serverDownloadUrlTemplateFinal = serverDownloadUrlTemplate || vscodeServerConfig.serverDownloadUrlTemplate || DEFAULT_DOWNLOAD_URL_TEMPLATE;
+    const serverDownloadUrlTemplateFinal = serverDownloadUrlTemplate
+        || (detectedPlatform === 'aix' ? AIX_DOWNLOAD_URL_TEMPLATE : vscodeServerConfig.serverDownloadUrlTemplate)
+        || DEFAULT_DOWNLOAD_URL_TEMPLATE;
     const bestRelease: IRelease = await fetchRelease(serverDownloadUrlTemplateFinal, vscodeServerConfig.version, vscodeServerConfig.release, serverVersion, logger);
 
     const installOptions: ServerInstallOptions = {
@@ -346,6 +351,12 @@ async function runInstallScript(
         // Use base64 encoding to avoid shell quoting issues across different login shells (bash, csh, tcsh, fish).
         // csh cannot handle multi-line strings inside single quotes with -c, so piping via base64 is the most portable approach.
         const base64Script = Buffer.from(installServerScript).toString('base64');
+        if (platform === 'aix') {
+            // AIX: base64 and GNU bash come from the Toolbox under /opt/freeware/bin, which the login
+            // shell's PATH may not include; a broken /etc/environment can even hide /usr/bin. Run the
+            // pipeline through /bin/sh with an explicit PATH so it works from any login shell.
+            return await conn.exec(`/bin/sh -c 'PATH=/opt/freeware/bin:/usr/local/bin:$PATH:/usr/bin:/bin; export PATH; echo ${base64Script} | base64 -d | bash -l'`);
+        }
         return await conn.exec(`echo ${base64Script} | base64 -d | bash -l`);
     }
 }
@@ -369,7 +380,10 @@ function parseInstallOutput(
 
     const exitCode = parseInt(resultMap.exitCode, 10);
     if (exitCode !== 0) {
-        throw new ServerInstallError(`Couldn't install vscode server on remote server, install script returned non-zero exit status`);
+        const reason = resultMap.installError?.trim();
+        throw new ServerInstallError(reason
+            ? `Couldn't install vscode server on remote host: ${reason}`
+            : `Couldn't install vscode server on remote server, install script returned non-zero exit status`);
     }
 
     const listeningOn = resultMap.listeningOn.match(/^\d+$/)

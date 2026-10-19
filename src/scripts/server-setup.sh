@@ -3,6 +3,10 @@
 
 %%SEND_ENV_VAR_LINES%%
 
+# Keep the standard tools reachable even when the remote's PATH is broken
+# (seen on AIX with an unexpanded "$PATH" in /etc/environment).
+export PATH="$PATH:/usr/bin:/bin:/usr/sbin:/sbin"
+
 TMP_DIR="${XDG_RUNTIME_DIR:-"/tmp"}"
 
 DISTRO_VERSION="%%DISTRO_VERSION%%"
@@ -27,6 +31,8 @@ SERVER_ARCH="%%SERVER_ARCH%%"
 SERVER_CONNECTION_TOKEN=
 SERVER_DOWNLOAD_URL=
 SERVER_VALIDATION_FLAG="%%SERVER_VALIDATION_FLAG%%"
+INSTALL_ERROR=
+TAR_MODE=
 
 LISTENING_ON=
 OS_RELEASE_ID=
@@ -45,6 +51,7 @@ get_installed_commit() {
 print_install_results_and_exit() {
   echo "%%SCRIPT_ID%%: start"
   echo "exitCode==$1=="
+  echo "installError==$INSTALL_ERROR=="
   echo "listeningOn==$LISTENING_ON=="
   echo "connectionToken==$SERVER_CONNECTION_TOKEN=="
   echo "logFile==$SERVER_LOGFILE=="
@@ -54,6 +61,14 @@ print_install_results_and_exit() {
 %%ENV_VAR_LINES%%
   echo "%%SCRIPT_ID%%: end"
   exit 0
+}
+
+# Report a fatal install problem: echoed for the log and returned to the
+# extension, which shows it in the connection error dialog.
+fail_install() {
+  INSTALL_ERROR="$1"
+  echo "Error: $1"
+  print_install_results_and_exit 1
 }
 
 # Validate the commit of the installed server against the expected one (DISTRO_COMMIT)
@@ -120,8 +135,53 @@ if ! command -v uname >/dev/null 2>&1; then
   print_install_results_and_exit 1
 fi
 
+# AIX: the Toolbox (GNU userland) lives under /opt/freeware/bin, and the server
+# package bundles its own Node.js, so only the tools to download, unpack and run
+# it are needed. Check them here and fail with the reason instead of later.
+if [[ $PLATFORM == "aix" ]]; then
+  export PATH="/opt/freeware/bin:$PATH"
+  OS_RELEASE_ID="aix"
+  PREFLIGHT_MISSING=
+
+  if ! command -v wget >/dev/null 2>&1 && ! command -v curl >/dev/null 2>&1; then
+    PREFLIGHT_MISSING="$PREFLIGHT_MISSING wget-or-curl"
+  fi
+
+  # AIX native tar has no -z and no --strip-components: prefer GNU tar, else gzip + tar via a staging dir.
+  if tar --version 2>/dev/null | grep -q GNU; then
+    TAR_MODE="gnu"
+  elif command -v gzip >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
+    TAR_MODE="pipe"
+  else
+    PREFLIGHT_MISSING="$PREFLIGHT_MISSING tar+gzip"
+  fi
+
+  # The bundled node and its addons need the GCC C++ runtime (libstdc++ / libgcc_s);
+  # bin/aix-env.sh looks in these places, or in VSCODIUM_AIX_GCC_LIBPATH when set.
+  GCC_RUNTIME_FOUND=
+  for lib in "$VSCODIUM_AIX_GCC_LIBPATH"/libstdc++* /opt/freeware/lib/libstdc++.so.6 /opt/freeware/lib/libstdc++.a /opt/freeware/lib/gcc/*/*/libstdc++* /usr/local/lib/libstdc++.so.6 /usr/local/lib/libstdc++.a; do
+    if [[ -e $lib ]]; then
+      GCC_RUNTIME_FOUND=1
+      break
+    fi
+  done
+  if [[ -z $GCC_RUNTIME_FOUND ]]; then
+    PREFLIGHT_MISSING="$PREFLIGHT_MISSING libstdc++"
+  fi
+
+  if [[ ! -d $HOME || ! -w $HOME ]]; then
+    fail_install "Home directory $HOME is not writable. The server is installed under $SERVER_DATA_DIR"
+  fi
+
+  if [[ -n $PREFLIGHT_MISSING ]]; then
+    fail_install "AIX host is missing required tools:$PREFLIGHT_MISSING. Install them from the AIX Toolbox for Open Source (dnf install bash tar gzip wget libstdc++ libgcc), then reconnect"
+  fi
+fi
+
 # https://www.freedesktop.org/software/systemd/man/os-release.html
-OS_RELEASE_ID="$(grep -i '^ID=' /etc/os-release 2>/dev/null | sed 's/^ID=//gi' | sed 's/"//g')"
+if [[ -z $OS_RELEASE_ID ]]; then
+  OS_RELEASE_ID="$(grep -i '^ID=' /etc/os-release 2>/dev/null | sed 's/^ID=//gi' | sed 's/"//g')"
+fi
 if [[ -z $OS_RELEASE_ID ]]; then
   OS_RELEASE_ID="$(grep -i '^ID=' /usr/lib/os-release 2>/dev/null | sed 's/^ID=//gi' | sed 's/"//g')"
   if [[ -z $OS_RELEASE_ID ]]; then
@@ -131,10 +191,8 @@ fi
 
 # Create installation folder
 if [[ ! -d $SERVER_DIR ]]; then
-  mkdir -p $SERVER_DIR || (
-    echo "Error: creating server install directory"
-    print_install_results_and_exit 1
-  )
+  mkdir -p $SERVER_DIR || fail_install "Failed creating server install directory $SERVER_DIR"
+
 fi
 
 # adjust platform for vscodium download, if needed
@@ -153,15 +211,24 @@ fi
 # Check if server script is already installed
 if [[ ! -f $SERVER_SCRIPT ]]; then
   case "$PLATFORM" in
-    alpine | darwin | freebsd | linux )
+    aix | alpine | darwin | freebsd | linux )
       ;;
     *)
-      echo "Error: '$PLATFORM' needs manual installation of remote extension host"
-      print_install_results_and_exit 1
+      fail_install "'$PLATFORM' needs manual installation of remote extension host"
       ;;
   esac
 
-  pushd "$SERVER_DIR" > /dev/null || exit
+  pushd "$SERVER_DIR" > /dev/null || fail_install "Failed to enter server directory $SERVER_DIR"
+
+  if [[ $PLATFORM == "aix" ]]; then
+    # Package is ~100 MB and unpacks to ~330 MB (node is bundled).
+    FREE_KB="$(df -Pk "$SERVER_DATA_DIR" 2>/dev/null | awk 'NR==2 {print $4}')"
+    if [[ $FREE_KB =~ ^[0-9]+$ && $FREE_KB -lt 460800 ]]; then
+      fail_install "Not enough free space under $SERVER_DATA_DIR: $((FREE_KB / 1024)) MB available, about 450 MB needed"
+    fi
+  fi
+
+  echo "Downloading server from $SERVER_DOWNLOAD_URL"
 
   if command -v wget >/dev/null 2>&1; then
     wget --tries=3 --timeout=10 --continue --no-verbose -O vscode-server.tar.gz "$SERVER_DOWNLOAD_URL"
@@ -170,38 +237,93 @@ if [[ ! -f $SERVER_SCRIPT ]]; then
   elif command -v fetch >/dev/null 2>&1; then
     fetch --retry --timeout=10 --quiet --output=vscode-server.tar.gz "$SERVER_DOWNLOAD_URL"
   else
-    echo "Error: no tool to download server binary"
-    print_install_results_and_exit 1
+    fail_install "No tool to download server binary (wget, curl or fetch)"
   fi
 
   if (( $? > 0 )); then
-    echo "Error downloading server from $SERVER_DOWNLOAD_URL"
     rm -rf vscode-server.tar.gz
-    print_install_results_and_exit 1
+    fail_install "Failed downloading server from $SERVER_DOWNLOAD_URL"
   fi
 
-  tar -xOf vscode-server.tar.gz > /dev/null 2>&1 || (
-    echo "Error downloaded tarball is corrupt or incomplete"
-    rm -rf vscode-server.tar.gz
-    print_install_results_and_exit 1
-  )
+  if [[ $TAR_MODE == "pipe" ]]; then
+    # Native AIX tar: check with gzip, unpack via a staging directory and move the
+    # single top-level directory's contents up (no --strip-components).
+    if ! gzip -t vscode-server.tar.gz 2>/dev/null; then
+      rm -rf vscode-server.tar.gz
+      fail_install "Downloaded tarball is corrupt or incomplete"
+    fi
+    echo "Extracting server package..."
+    rm -rf "$SERVER_DIR/.extract"
+    mkdir -p "$SERVER_DIR/.extract"
+    if ! ( gzip -dc vscode-server.tar.gz | ( cd "$SERVER_DIR/.extract" && tar -xf - ) ); then
+      rm -rf vscode-server.tar.gz
+      fail_install "Failed extracting the server package with gzip and tar. Installing GNU tar from the AIX Toolbox (dnf install tar) is recommended"
+    fi
+    EXTRACT_TOP="$(ls -d "$SERVER_DIR"/.extract/*/ 2>/dev/null | head -1)"
+    if [[ -z $EXTRACT_TOP ]]; then
+      fail_install "Server package has an unexpected layout (no top-level directory)"
+    fi
+    shopt -s dotglob
+    mv "$EXTRACT_TOP"* "$SERVER_DIR"/
+    shopt -u dotglob
+    rm -rf "$SERVER_DIR/.extract"
+  else
+    tar -xOf vscode-server.tar.gz > /dev/null 2>&1 || (
+      rm -rf vscode-server.tar.gz
+      fail_install "Downloaded tarball is corrupt or incomplete"
+    )
 
-  tar -xf vscode-server.tar.gz --strip-components 1 || (
-    echo "Error while extracting server contents"
-    rm -rf vscode-server.tar.gz
-    print_install_results_and_exit 1
-  )
+    echo "Extracting server package..."
+    tar -xf vscode-server.tar.gz --strip-components 1 || (
+      rm -rf vscode-server.tar.gz
+      fail_install "Failed extracting the server package"
+    )
+  fi
 
   rm -f vscode-server.tar.gz
+
+  if [[ $PLATFORM == "aix" ]]; then
+    chmod +x "$SERVER_DIR/bin/$SERVER_APP_NAME" "$SERVER_DIR/bin/remote-cli/"* "$SERVER_DIR/node" 2>/dev/null
+
+    # The package bundles node; prove the server runs on this host before going
+    # any further (missing libstdc++, wrong LIBPATH, bad binary, ...).
+    echo "Verifying the server runs on this host..."
+    SERVER_VERSION_OUTPUT="$("$SERVER_SCRIPT" --version 2>&1)"
+    SERVER_VERSION_STATUS=$?
+    if [[ $SERVER_VERSION_STATUS -ne 0 ]]; then
+      fail_install "Server does not run on this host ($SERVER_SCRIPT --version exited with $SERVER_VERSION_STATUS): $(echo "$SERVER_VERSION_OUTPUT" | head -5 | tr '\n' ' ')"
+    fi
+    echo "$SERVER_VERSION_OUTPUT"
+
+    # Put the remote CLI (codium) on PATH for interactive bash shells
+    BASHRC="$HOME/.bashrc"
+    SNIPPET_MARKER="# === VSCodium remote-cli PATH setup ==="
+    [[ -f $BASHRC ]] || touch "$BASHRC"
+    if ! grep -Fq "$SNIPPET_MARKER" "$BASHRC"; then
+      cat >> "$BASHRC" <<EOF
+
+$SNIPPET_MARKER
+# Add all matching remote-cli directories to PATH
+if [ -d "$SERVER_DATA_DIR/bin" ]; then
+  for dir in "$SERVER_DATA_DIR"/bin/*/bin/remote-cli; do
+      if [ -d "\$dir" ]; then
+          PATH="\$PATH:\$dir"
+      fi
+  done
+  export PATH
+fi
+# === End VSCodium remote-cli PATH setup ===
+
+EOF
+      echo "remote-cli PATH snippet added to $BASHRC"
+    fi
+  fi
 
   popd > /dev/null || exit
 
   if [[ ! -f $SERVER_SCRIPT ]] || [[ ! -s $SERVER_SCRIPT ]]; then
-    echo "Error: server contents are corrupted"
-
     rm -rf $SERVER_DIR/*
-
-    print_install_results_and_exit 1
+    fail_install "Server contents are corrupted: $SERVER_SCRIPT not found after extraction"
   fi
 
   if ! validate_installed_commit; then
@@ -256,8 +378,7 @@ fi
 if [[ -f $SERVER_TOKENFILE ]]; then
   SERVER_CONNECTION_TOKEN="$(cat $SERVER_TOKENFILE)"
 else
-  echo "Error: server token file not found $SERVER_TOKENFILE"
-  print_install_results_and_exit 1
+  fail_install "Server token file not found $SERVER_TOKENFILE"
 fi
 
 if [[ -f $SERVER_LOGFILE ]]; then
@@ -276,12 +397,10 @@ if [[ -f $SERVER_LOGFILE ]]; then
   done
 
   if [[ -z $LISTENING_ON ]]; then
-    echo "Error: server did not start successfully"
-    print_install_results_and_exit 1
+    fail_install "Server did not start successfully. Last log lines: $(tail -5 "$SERVER_LOGFILE" | tr '\n' ' ')"
   fi
 else
-  echo "Error: server log file not found $SERVER_LOGFILE"
-  print_install_results_and_exit 1
+  fail_install "Server log file not found $SERVER_LOGFILE"
 fi
 
 # Finish server setup
