@@ -6,47 +6,44 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          cache: yarn
 
       - name: Install dependencies
-        run: |
-          yarn install --frozen-lockfile
+        run: yarn install --frozen-lockfile
 
       - name: Package extension
         id: package_vsix
         run: |
           yarn package
-          echo ::set-output name=vsix_path::$(ls *.vsix)
-
-          version=$(jq --raw-output '.version' package.json)
-          echo ::set-output name=version::$version
+          echo "vsix_path=$(ls *.vsix)" >> "$GITHUB_OUTPUT"
+          echo "version=$(jq --raw-output '.version' package.json)" >> "$GITHUB_OUTPUT"
 
       - name: Ensure new version
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          latest_tag=$(curl --silent -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/jeanp413/open-remote-ssh/releases/latest | jq --raw-output '.tag_name')
-          if [ "$latest_tag" = "v${{ steps.package_vsix.outputs.version }}" ]; then
+          if gh release view "v${{ steps.package_vsix.outputs.version }}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "Release v${{ steps.package_vsix.outputs.version }} already exists; bump package.json#version first."
             exit 1
           fi
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.package_vsix.outputs.version }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          name: AIX Remote SSH v${{ steps.package_vsix.outputs.version }}
+          generate_release_notes: true
           files: ${{ steps.package_vsix.outputs.vsix_path }}
 
-      # - name: Publish to MS Marketplace
-      #   run: |
-      #     npx vsce publish --packagePath ${{ steps.package_vsix.outputs.vsix_path }}
-      #   env:
-      #     VSCE_PAT: ${{ secrets.VSCE_PAT }}
-
       - name: Publish to Open VSX Registry
-        run: |
-          npx ovsx publish --packagePath ${{ steps.package_vsix.outputs.vsix_path }}
+        if: ${{ env.OVSX_PAT != '' }}
+        run: npx ovsx publish --packagePath ${{ steps.package_vsix.outputs.vsix_path }}
         env:
           OVSX_PAT: ${{ secrets.OPEN_VSX_PAT }}

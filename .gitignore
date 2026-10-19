@@ -8,3 +8,4 @@ vscode.d.ts
 vscode.proposed.*.d.ts
 *.ignore.ts
 publish.sh
+tsconfig.tsbuildinfo

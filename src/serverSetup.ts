@@ -138,7 +138,7 @@ export async function installCodeServer(conn: SSHConnection, serverDownloadUrlTe
         const endRegex = new RegExp(`${scriptId}: end`);
         // investigate if it's possible to use `-EncodedCommand` flag
         // https://devblogs.microsoft.com/powershell/invoking-powershell-with-complex-expressions-using-scriptblocks/
-        let command = '';
+        let command: string;
         if (shell === 'powershell') {
             command = `md -Force ${installDir}; echo @'\n${installServerScript}\n'@ | Set-Content ${installScript}; powershell -ExecutionPolicy ByPass -File "${installScript}"`;
         } else if (shell === 'bash') {
@@ -906,8 +906,8 @@ async function getLatestAIXServerVersion(): Promise<string | null> {
             return null;
         }
         
-        const data = await response.json();
-        return data.tag_name; // e.g., "1.106.27818"
+        const data = await response.json() as { tag_name?: string };
+        return data.tag_name ?? null; // e.g., "1.106.27818"
     } catch (error) {
         return null;
     }

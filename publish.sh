@@ -1,13 +1,16 @@
-# To publish a new release, run the following commands:
-# Modify the package.json to update the version
-# Set the GITHUB_TOKEN environment variable with your GitHub token
-# Then run this script 
-yarn compile
-npx vsce package --yarn
+#!/usr/bin/env bash
+# Build the VSIX, publish it to Open VSX and create the GitHub release.
+# Requires: OVSX_PAT (Open VSX personal access token) in the environment, gh CLI logged in.
+set -euo pipefail
 
-npx ovsx publish -p  <github token>
+: "${OVSX_PAT:?Set OVSX_PAT to your Open VSX personal access token}"
 
+version=$(node -p "require('./package.json').version")
+vsix="aix-remote-ssh-${version}.vsix"
 
-#  Publish the release to github
-# gh release create v0.0.53 aix-remote-ssh-0.0.53.vsix --title "AIX Remote SSH v0.0.53" --notes "Modified the readme"
-gh release create v0.0.58 aix-remote-ssh-0.0.58.vsix --title "AIX Remote SSH v0.0.58" --notes ""
+yarn install --frozen-lockfile
+yarn lint
+yarn package
+
+npx ovsx publish --packagePath "$vsix" -p "$OVSX_PAT"
+gh release create "v${version}" "$vsix" --title "AIX Remote SSH v${version}" --generate-notes

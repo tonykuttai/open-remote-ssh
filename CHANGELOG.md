@@ -5,6 +5,7 @@
 - AIX: fall back to `gzip -dc | tar` when GNU tar is not installed
 - Resolve `bash` through `/bin/sh` before running the install script, and append the standard directories to PATH, so hosts with a missing bash or a broken non-interactive PATH get a clear error or just work
 - Activate on startup and show the argv.json instructions with an "Open argv.json" button when the `resolvers` API proposal is not enabled (#2)
+- Toolchain: TypeScript 5.9, ESLint 10 (flat config), webpack 5.112, @types/vscode 1.105, Node 22 in CI; CI workflow added; stale backup files removed
 
 ## 0.0.48
 - Support `%n` in ProxyCommand

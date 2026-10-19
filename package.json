@@ -5,10 +5,10 @@
 	"version": "0.0.63",
 	"publisher": "tonykuttai",
 	"author": {
-    "name": "Tony Varghese",
-    "email": "tonypalampalliyil@gmail.com",
-    "url": "https://github.com/tonykuttai"
-  	},
+		"name": "Tony Varghese",
+		"email": "tonypalampalliyil@gmail.com",
+		"url": "https://github.com/tonykuttai"
+	},
 	"license": "MIT",
 	"repository": {
 		"type": "git",
@@ -20,7 +20,7 @@
 	"icon": "resources/icon.png",
 	"engines": {
 		"vscode": "^1.105.0",
-		"node": ">=16.0.0"
+		"node": ">=20.0.0"
 	},
 	"extensionKind": [
 		"ui"
@@ -38,12 +38,7 @@
 	"api": "none",
 	"activationEvents": [
 		"onStartupFinished",
-		"onCommand:openremotessh.openEmptyWindow",
-		"onCommand:openremotessh.openEmptyWindowInCurrentWindow",
-		"onCommand:openremotessh.openConfigFile",
-		"onCommand:openremotessh.showLog",
-		"onResolveRemoteAuthority:ssh-remote",
-		"onView:sshHosts"
+		"onResolveRemoteAuthority:ssh-remote"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -352,29 +347,34 @@
 		"webpack": "webpack --mode development",
 		"compile": "tsc -b",
 		"watch": "tsc -b -w",
-		"package": "npx vsce package --yarn",
-		"update-dts": "npx vscode-dts dev && npx vscode-dts main"
+		"lint": "eslint src",
+		"lint:fix": "eslint src --fix",
+		"package": "vsce package --yarn",
+		"update-dts": "dts dev release/1.105"
 	},
 	"devDependencies": {
-		"@types/node": "^16.11.0",
-		"@types/ssh2": "^0.5.52",
-		"@types/ssh2-streams": "0.1.12",
-		"@types/vscode": "~1.75.0",
-		"@types/webpack": "^5.28.0",
-		"@typescript-eslint/eslint-plugin": "^5.19.0",
-		"@typescript-eslint/parser": "^5.19.0",
-		"eslint": "^8.13.0",
-		"eslint-plugin-jsdoc": "^19.1.0",
-		"ts-loader": "^9.2.7",
-		"typescript": "^4.6.3",
-		"webpack": "^5.42.0",
-		"webpack-cli": "^4.7.2"
+		"@eslint/js": "^10.0.1",
+		"@stylistic/eslint-plugin": "^5.10.0",
+		"@types/node": "^22.20.5",
+		"@types/ssh2": "0.5.52",
+		"@types/ssh2-streams": "0.1.13",
+		"@types/vscode": "~1.105.0",
+		"@types/webpack": "^5.28.5",
+		"@vscode/dts": "^0.4.1",
+		"@vscode/vsce": "^4.0.0",
+		"eslint": "^10.13.0",
+		"eslint-plugin-jsdoc": "^65.3.12",
+		"ts-loader": "^9.6.2",
+		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.71.2",
+		"webpack": "^5.112.0",
+		"webpack-cli": "^7.2.3"
 	},
 	"dependencies": {
 		"@jeanp413/ssh-config": "^4.3.1",
-		"glob": "^9.3.1",
+		"glob": "^13.0.6",
 		"simple-socks": "git+https://github.com/jeanp413/simple-socks#main",
-		"socks": "^2.5.0",
+		"socks": "^2.8.10",
 		"ssh2": "git+https://github.com/jeanp413/ssh2#master"
 	}
 }
