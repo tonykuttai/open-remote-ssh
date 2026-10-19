@@ -1,3 +1,7 @@
+## 0.0.64
+- Docs only: README rewritten as a short AIX getting-started guide for open-remote-ssh users, with the real server disk footprint; stale README-AIX.md removed
+- Packaging: tsbuildinfo kept out of the VSIX
+
 ## 0.0.63
 - AIX: the server package bundles its own Node.js, so Node.js no longer needs to be installed on the host (#5)
 - AIX: preflight check for bash, tar/gzip, wget/curl, Toolbox libstdc++ and free disk space; failures are reported with the reason in the connection error dialog (#1)

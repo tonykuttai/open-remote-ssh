@@ -12,5 +12,6 @@ yarn install --frozen-lockfile
 yarn lint
 yarn package
 
-npx ovsx publish --packagePath "$vsix" -p "$OVSX_PAT"
+# ovsx reads the token from the OVSX_PAT environment variable; do not pass it on the command line
+npx ovsx publish --packagePath "$vsix"
 gh release create "v${version}" "$vsix" --title "AIX Remote SSH v${version}" --generate-notes
