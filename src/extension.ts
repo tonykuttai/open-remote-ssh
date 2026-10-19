@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import Log from './common/logger';
+import { Log } from './common/logger';
 import { RemoteSSHResolver, REMOTE_SSH_AUTHORITY } from './authResolver';
 import { openSSHConfigFile, promptOpenRemoteSSHWindow } from './commands';
 import { HostTreeDataProvider } from './hostTreeView';
@@ -14,9 +14,8 @@ export async function activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(vscode.workspace.registerRemoteAuthorityResolver(REMOTE_SSH_AUTHORITY, remoteSSHResolver));
         context.subscriptions.push(remoteSSHResolver);
     } catch (e) {
-        // The 'resolvers' API proposal is not enabled for this extension id. Without it the
-        // extension cannot resolve ssh-remote authorities at all, so explain how to enable it
-        // and keep the rest of the activation (commands, log) usable.
+        // The 'resolvers' API proposal is not enabled for this extension id (VSCodium only enables it
+        // for the ids in product.json). Explain how to enable it and keep commands and the log usable.
         logger.error('Failed to register the remote authority resolver', e);
         void showProposedApiInstructions(context, logger);
     }

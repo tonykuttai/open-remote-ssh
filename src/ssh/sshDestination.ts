@@ -44,12 +44,15 @@ export default class SSHDestination {
             const data = JSON.parse(Buffer.from(dest, 'hex').toString());
             return new SSHDestination(data.hostName, data.user, data.port);
         } catch {
-            // not a hex-encoded JSON destination, fall through to plain parsing
+            // ignore
         }
+
         return SSHDestination.parse(dest.replace(/\\x([0-9a-f]{2})/g, (_, charCode) => String.fromCharCode(parseInt(charCode, 16))));
     }
 
     toEncodedString(): string {
-        return this.toString().replace(/[A-Z]/g, (ch) => `\\x${ch.charCodeAt(0).toString(16).toLowerCase()}`);
+        const data = { hostName: this.hostname, user: this.user, port: this.port };
+        const json = JSON.stringify(data);
+        return Buffer.from(json).toString('hex');
     }
 }

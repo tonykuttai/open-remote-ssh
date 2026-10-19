@@ -3,7 +3,11 @@
 [jeanp413/open-remote-ssh](https://github.com/jeanp413/open-remote-ssh) for VSCodium, with support for
 **IBM AIX (ppc64)** remotes. The AIX server comes from
 [tonykuttai/vscodium-aix-server](https://github.com/tonykuttai/vscodium-aix-server) and is installed
-automatically on first connection. Everything else works as in open-remote-ssh.
+automatically on first connection. Everything else works as in open-remote-ssh (this build tracks
+upstream 0.4.0): SSH config hosts in the Connect prompt, jump hosts, agent forwarding, GSSAPI, custom
+server install paths and download URLs. See the upstream
+[README](https://github.com/jeanp413/open-remote-ssh#readme) and
+[docs](https://github.com/jeanp413/open-remote-ssh/tree/master/docs) for those settings.
 
 ## Supported remote platforms
 
@@ -57,5 +61,5 @@ The extension checks these before downloading anything and shows what is missing
 
 ## Limitations
 
-- File watching is polling based (no native file events on AIX).
+- Changes made to files outside the editor (for example by a build) are not detected automatically on AIX: the server's file watcher does not work there yet. Use Refresh in the Explorer, or reopen the file.
 - Extensions that ship their own native binaries will not run on AIX.

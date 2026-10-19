@@ -8,9 +8,9 @@ set -euo pipefail
 version=$(node -p "require('./package.json').version")
 vsix="aix-remote-ssh-${version}.vsix"
 
-yarn install --frozen-lockfile
-yarn lint
-yarn package
+npm ci
+npm run lint
+npm run package
 
 # ovsx reads the token from the OVSX_PAT environment variable; do not pass it on the command line
 npx ovsx publish --packagePath "$vsix"
