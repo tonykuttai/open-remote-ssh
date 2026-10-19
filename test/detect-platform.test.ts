@@ -29,6 +29,7 @@ describe('parseKernelName', () => {
         ['Linux', 'linux'],
         ['FreeBSD', 'freebsd'],
         ['DragonFly', 'dragonfly'],
+        ['AIX', 'aix'],
     ])('maps %s to %s', (input, expected) => {
         expect(parseKernelName(input)).to.eql(expected);
     });
@@ -48,6 +49,7 @@ describe('parseMachineArch', () => {
         ['arm64', 'arm64'],
         ['aarch64', 'arm64'],
         ['ppc64le', 'ppc64le'],
+        ['powerpc', 'ppc64'],
         ['riscv64', 'riscv64'],
         ['loongarch64', 'loong64'],
         ['s390x', 's390x'],
@@ -102,6 +104,21 @@ describe('detectPlatform', () => {
 
             expect(result.detectedPlatform).to.eql('freebsd');
             expect(result.detectedArch).to.eql('x64');
+        });
+
+        it('detects aix/ppc64 using "uname -p" for the architecture', async () => {
+            const conn = fakeConn({
+                'echo %COMSPEC%~$PSHOME': out('%COMSPEC%~\n'),
+                'echo "==$(uname -s)=="': out('==AIX==\n'),
+                'uname -p': out('powerpc\n')
+            });
+
+            await expect(detectPlatform(conn, undefined, logger)).resolves.to.eql({
+                detectedPlatform: 'aix',
+                detectedArch: 'ppc64',
+                detectedShell: 'bash',
+            });
+            expect(conn.exec).not.toHaveBeenCalledWith('uname -m');
         });
 
         it('fails on an unsupported kernel', async () => {
@@ -185,6 +202,15 @@ describe('detectPlatform', () => {
             const result = await detectPlatform(conn, 'linux', logger);
 
             expect(result).to.eql({ detectedPlatform: 'linux', detectedArch: 'arm64', detectedShell: 'bash' });
+            expect(conn.exec).not.toHaveBeenCalledWith('echo "==$(uname -s)=="');
+        });
+
+        it('maps "aix" and probes the architecture with "uname -p"', async () => {
+            const conn = fakeConn({ 'uname -p': out('powerpc\n') });
+
+            const result = await detectPlatform(conn, 'aix', logger);
+
+            expect(result).to.eql({ detectedPlatform: 'aix', detectedArch: 'ppc64', detectedShell: 'bash' });
             expect(conn.exec).not.toHaveBeenCalledWith('echo "==$(uname -s)=="');
         });
 

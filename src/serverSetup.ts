@@ -116,8 +116,8 @@ export class ServerInstallError extends Error {
 
 const DEFAULT_DOWNLOAD_URL_TEMPLATE = 'https://github.com/VSCodium/vscodium/releases/download/${version}.${release}/vscodium-reh-${os}-${arch}-${version}.${release}.tar.gz';
 
-export type Platform = 'alpine' | 'darwin' | 'dragonfly' | 'freebsd' | 'linux' | 'windows';
-export type Architecture = 'arm64' | 'armhf' | 'loong64' | 'ppc64le' | 'riscv64' | 's390x' | 'x64';
+export type Platform = 'aix' | 'alpine' | 'darwin' | 'dragonfly' | 'freebsd' | 'linux' | 'windows';
+export type Architecture = 'arm64' | 'armhf' | 'loong64' | 'ppc64' | 'ppc64le' | 'riscv64' | 's390x' | 'x64';
 export type Shell = 'cmd' | 'powershell' | 'bash';
 
 export type DetectedPlatform = {
@@ -140,6 +140,8 @@ export function parseKernelName(stdout: string): Platform {
             return 'freebsd';
         case 'DragonFly':
             return 'dragonfly';
+        case 'AIX':
+            return 'aix';
         default:
             throw new ServerInstallError(`platform not supported: ${stdout}`);
     }
@@ -158,6 +160,9 @@ export function parseMachineArch(stdout: string): Architecture {
             return 'arm64';
         case 'ppc64le':
             return 'ppc64le';
+        case 'powerpc':
+            // AIX: `uname -p` reports the processor family; `uname -m` is the machine id
+            return 'ppc64';
         case 'riscv64':
             return 'riscv64';
         case 'loongarch64':
@@ -198,6 +203,8 @@ export async function detectPlatform(conn: Pick<SSHClient, 'exec'>, platform: Re
         }
     } else if (platform === 'macos') {
         detectedPlatform = 'darwin';
+    } else if (platform === 'aix') {
+        detectedPlatform = 'aix';
     } else {
         detectedPlatform = 'linux';
     }
@@ -209,13 +216,15 @@ export async function detectPlatform(conn: Pick<SSHClient, 'exec'>, platform: Re
     if (detectedPlatform === 'windows') {
         detectedArch = 'x64';
     } else {
-        const result = await conn.exec('uname -m');
+        // On AIX `uname -m` returns the machine id (e.g. 00CE97F74C00); `uname -p` gives the processor family.
+        const archCommand = detectedPlatform === 'aix' ? 'uname -p' : 'uname -m';
+        const result = await conn.exec(archCommand);
         const stdout = result.stdout.trim();
 
         if (result.stderr) {
-            throw new ServerInstallError(`Cannot execute "uname -m", yields: ${result.stderr}`);
+            throw new ServerInstallError(`Cannot execute "${archCommand}", yields: ${result.stderr}`);
         } else if (stdout.length === 0) {
-            throw new ServerInstallError(`"uname -m" yields empty result`);
+            throw new ServerInstallError(`"${archCommand}" yields empty result`);
         }
 
         detectedArch = parseMachineArch(stdout);

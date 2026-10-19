@@ -185,7 +185,7 @@
         },
         "remote.SSH.remotePlatform": {
           "type": "object",
-          "description": "A map of the remote hostname to the platform for that remote. Valid values: linux, macos, windows.",
+          "description": "A map of the remote hostname to the platform for that remote. Valid values: linux, macos, windows, aix.",
           "scope": "application",
           "default": {},
           "additionalProperties": {
@@ -193,7 +193,8 @@
             "enum": [
               "linux",
               "macos",
-              "windows"
+              "windows",
+              "aix"
             ]
           }
         },
