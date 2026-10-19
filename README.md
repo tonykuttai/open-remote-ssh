@@ -1,103 +1,65 @@
-# Open Remote - SSH
+# AIX Remote - SSH
 
-![Open Remote SSH](https://raw.githubusercontent.com/jeanp413/open-remote-ssh/master/docs/images/open-remote-ssh.gif)
+[jeanp413/open-remote-ssh](https://github.com/jeanp413/open-remote-ssh) for VSCodium, with support for
+**IBM AIX (ppc64)** remotes. The AIX server comes from
+[tonykuttai/vscodium-aix-server](https://github.com/tonykuttai/vscodium-aix-server) and is installed
+automatically on first connection. Everything else works as in open-remote-ssh (this build tracks
+upstream 0.4.0): SSH config hosts in the Connect prompt, jump hosts, agent forwarding, GSSAPI, custom
+server install paths and download URLs. See the upstream
+[README](https://github.com/jeanp413/open-remote-ssh#readme) and
+[docs](https://github.com/jeanp413/open-remote-ssh/tree/master/docs) for those settings.
 
-## SSH Host Requirements
-You can connect to a running SSH server on the following platforms.
+## Supported remote platforms
 
-**Supported**:
-
+- **AIX 7.x (ppc64)**, built and tested on AIX 7.3, see below
 - x86_64 Debian 8+, Ubuntu 16.04+, CentOS / RHEL 7+ Linux
 - ARMv7l (AArch32) Raspbian Stretch/9+ (32-bit)
 - ARMv8l (AArch64) Ubuntu 18.04+ (64-bit)
-- IBM Z (s390x) Debian 13, RHEL 8+, Ubuntu 22.04+, SLES 15+
+- ppc64le, s390x, riscv64 and loong64 Linux
+- Alpine Linux (`apk add bash libstdc++` on the host)
 - macOS 10.14+ (Mojave)
 - Windows 10+
-- FreeBSD 13+ (Requires custom serverDownloadUrlTemplate setting)
-- DragonFlyBSD (Requires manual remote-extension-host installation)
+- FreeBSD 13 and DragonFlyBSD (manual remote-extension-host installation)
 
-## Requirements
+On platforms other than AIX the server is downloaded from the VSCodium releases, exactly as open-remote-ssh does.
 
-**Configuration**
+## AIX host requirements
 
-You SSH server's configuration needs to have the following setting:
-- `AllowTcpForwarding yes`
+The server bundles its own Node.js, so Node.js is not needed on the host. Install these from the
+[AIX Toolbox](https://www.ibm.com/support/pages/aix-toolbox-open-source-software-overview):
 
-**Activation**
-
-> NOTE: Not needed in VSCodium since version 1.75
-
-Enable the extension in your `argv.json`
-
-
-```json
-{
-    ...
-    "enable-proposed-api": [
-        ...,
-        "jeanp413.open-remote-ssh",
-    ]
-    ...
-}
-```
-which you can open by running the `Preferences: Configure Runtime Arguments` command.
-The file is located in `~/.vscode-oss/argv.json`.
-
-**Alpine linux**
-
-When running on alpine linux, the packages `libstdc++` and `bash` are necessary and can be installed via
-running
 ```bash
-sudo apk add bash libstdc++
+dnf install bash tar gzip wget libstdc++ libgcc
 ```
 
-## SSH configuration file
+The server is installed under `~/.vscodium-server`, so no root access is needed. Each installed server
+version takes about 350 MB (most of it the bundled Node.js), and the first install needs about 450 MB
+free while the 100 MB download is being unpacked.
 
-[OpenSSH](https://www.openssh.com/) supports using a [configuration file](https://linuxize.com/post/using-the-ssh-config-file/) to store all your different SSH connections.
-To use an SSH config file, run the `Remote-SSH: Open SSH Configuration File...` command.
+The extension checks these before downloading anything and shows what is missing in the connection error.
 
-## SSH configuration guides
+## Setup
 
-- [GSSAPI / Kerberos authentication](https://github.com/jeanp413/open-remote-ssh/blob/master/docs/gssapi-kerberos-authentication.md.md)
-- [Jump hosts](https://github.com/jeanp413/open-remote-ssh/blob/master/docs/jump-hosts.md)
+1. Install `tonykuttai.aix-remote-ssh` from the Extensions view (Open VSX).
+2. Enable the proposed API: run **Preferences: Configure Runtime Arguments** and add
 
-## Note for VSCode-OSS users
+   ```jsonc
+   "enable-proposed-api": ["tonykuttai.aix-remote-ssh"]
+   ```
 
-If you are using VSCode-OSS instead of VSCodium, you need some extra steps to make it work.
+   then restart VSCodium. If this is missing, the extension shows a dialog with an **Open argv.json** button at startup.
+3. **Remote-SSH: Connect to Host...** and pick your AIX host. AIX is detected automatically; the first
+   connection downloads the server (about 100 MB) and takes a minute or two.
 
-Modify the following entries in the plugin settings:
+## Troubleshooting
 
-```
-"remote.SSH.serverBinaryName": "codium-server",
-"remote.SSH.serverDownloadUrlTemplate": "https://github.com/VSCodium/vscodium/releases/download/${version}${release}/vscodium-reh-${os}-${arch}-${version}${release}.tar.gz",
-"remote.SSH.serverVersion": "latest",
-"remote.SSH.serverValidation": "force",
-```
+- The connection error dialog contains the reason reported by the install script.
+- Extension log: **Remote-SSH: Show Log**. Server log on the host: `~/.vscodium-server/.<commit>.log`.
+- Self-check on the host: `~/.vscodium-server/bin/<commit>/bin/codium-server --version`.
+- When [reporting an issue](https://github.com/tonykuttai/open-remote-ssh/issues), include `oslevel -s`,
+  the VSCodium and extension versions, and the text from the error dialog or log.
 
-VSCodium versions have an extra `release` part that do not have equivalent for VSCode-OSS.
-So leaving `serverVersion` to the default `"match"` will fail.
-The plugin will install the latest release of VSCodium if `serverVersion` is set to `"latest"`.
-If you need to match the VSCode-OSS version, set `serverVersion` to `"closest"`, to
-automatically fetch the last release of VSCodium for this version.
+## Limitations
 
-You can look for the release numbers associated with your VSCode version in the
-[release page](https://github.com/VSCodium/vscodium/releases/). For instance, for VSCode
-version "1.96.0", the (last) VSCodium release number is "24352".
-
-You can also set `serverVersion` to a specic version (e.g. "1.116.0") or a specific
-version-release (e.g. "1.116.02821").
-
-If the local and remote VSCodium versions don't match, which will be the case on VSCode-OSS,
-remote server validation needs to be bypassed. Setting `serverValidation` to `"force"` will
-modify the commit of the remote server to make it match the local VSCode commit.
-If `serverValidation` is set to `"skip"`, the remote server will skip checking that the commits
-match. This option is working only if the remote VSCodium version is `>=1.120`.
-
-Starting with VSCodium version 1.99.0, the `release` number is not separated from the `version` by a dot `.` anymore.
-Therefore `serverDownloadUrlTemplate` needs to be filled with the new scheme (as shown above).
-
-Before 1.99.0, the old scheme needs to be used:
-
-```
-"remote.SSH.serverDownloadUrlTemplate": "https://github.com/VSCodium/vscodium/releases/download/${version}.${release}/vscodium-reh-${os}-${arch}-${version}.${release}.tar.gz",
-```
+- File watching is polling based (no native file events on AIX).
+- Extensions that ship their own native binaries will not run on AIX.

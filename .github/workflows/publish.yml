@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   publish:
-    if: github.repository == 'jeanp413/open-remote-ssh'
+    if: github.repository == 'tonykuttai/open-remote-ssh'
     runs-on: ubuntu-latest
     environment: publish
     steps:

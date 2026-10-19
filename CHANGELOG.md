@@ -1,3 +1,27 @@
+## 0.1.0
+
+- remodel: rebuilt on upstream open-remote-ssh 0.4.0 (previously based on 0.0.48). Brings upstream's
+  local-port security fix, archive integrity check, SSH config hosts in the Connect prompt, ForwardAgent,
+  PEM keys, install locking, csh/tcsh login shells, Code-OSS compatibility and the test suite.
+- feat(aix): AIX ppc64 support re-applied on the new base: detection, Toolbox preflight, bundled-Node
+  server from vscodium-aix-server, gzip + native tar fallback, server self-check, failure reason in the
+  connection dialog, argv.json guidance dialog at startup.
+
+## 0.0.64 (old base)
+- Docs only: README rewritten as a short AIX getting-started guide for open-remote-ssh users, with the real server disk footprint; stale README-AIX.md removed
+- Packaging: tsbuildinfo kept out of the VSIX
+
+## 0.0.63
+- AIX: the server package bundles its own Node.js, so Node.js no longer needs to be installed on the host (#5)
+- AIX: preflight check for bash, tar/gzip, wget/curl, Toolbox libstdc++ and free disk space; failures are reported with the reason in the connection error dialog (#1)
+- AIX: run `codium-server --version` right after extraction and report precisely when the server cannot start
+- AIX: fall back to `gzip -dc | tar` when GNU tar is not installed
+- Resolve `bash` through `/bin/sh` before running the install script, and append the standard directories to PATH, so hosts with a missing bash or a broken non-interactive PATH get a clear error or just work
+- Activate on startup and show the argv.json instructions with an "Open argv.json" button when the `resolvers` API proposal is not enabled (#2)
+- Toolchain: TypeScript 5.9, ESLint 10 (flat config), webpack 5.112, @types/vscode 1.105, Node 22 in CI; CI workflow added; stale backup files removed
+
+## Upstream open-remote-ssh changes (base of this fork)
+
 ## 0.4.0
 
 - feat: list hosts from multi-name `Host` lines and nested `Includes` (#332)
