@@ -14,4 +14,4 @@ npm run package
 
 # ovsx reads the token from the OVSX_PAT environment variable; do not pass it on the command line
 npx ovsx publish --packagePath "$vsix"
-gh release create "v${version}" "$vsix" --title "AIX Remote SSH v${version}" --generate-notes
+gh release create "v${version}" "$vsix" --target master --title "AIX Remote SSH v${version}" --generate-notes
