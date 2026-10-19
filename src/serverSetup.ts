@@ -225,7 +225,10 @@ export async function installCodeServer(conn: SSHConnection, serverDownloadUrlTe
  * message instead of an unparsable install output when it is missing.
  */
 async function findRemoteBash(conn: SSHConnection, logger: Log): Promise<string> {
-    const probe = `sh -c 'PATH=/opt/freeware/bin:/usr/local/bin:$PATH; command -v bash'`;
+    // /bin/sh by absolute path and the standard directories appended: a remote whose
+    // non-interactive PATH is broken (e.g. an unexpanded "$PATH" in /etc/environment)
+    // must still be able to run the install script.
+    const probe = `/bin/sh -c 'PATH=/opt/freeware/bin:/usr/local/bin:$PATH:/usr/bin:/bin; command -v bash'`;
     let result: { stdout: string; stderr: string };
     try {
         result = await conn.exec(probe);
@@ -238,7 +241,7 @@ async function findRemoteBash(conn: SSHConnection, logger: Log): Promise<string>
     if (!bashPath) {
         logger.trace(`bash probe output: stdout=${JSON.stringify(result.stdout)} stderr=${JSON.stringify(result.stderr)}`);
         throw new ServerInstallError(
-            'bash was not found on the remote host (searched PATH, /opt/freeware/bin and /usr/local/bin). ' +
+            'bash was not found on the remote host (searched PATH, /opt/freeware/bin, /usr/local/bin, /usr/bin and /bin). ' +
             'The server install script requires bash. On AIX install it from the AIX Toolbox for Open Source: dnf install bash'
         );
     }
@@ -293,6 +296,10 @@ export function generateBashInstallScript({
 
     return `
 # Server installation script
+
+# Make sure the standard tools are reachable even if the remote's non-interactive
+# PATH is broken; the install script needs uname, mkdir, tar, ps, grep, ...
+export PATH="$PATH:/usr/bin:/bin:/usr/sbin:/sbin"
 
 TMP_DIR="\${XDG_RUNTIME_DIR:-"/tmp"}"
 
