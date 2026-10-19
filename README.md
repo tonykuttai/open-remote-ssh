@@ -152,7 +152,7 @@ Host aix-server
    ```
    aix-server
    ```
-5. **Select platform** when prompted: Choose "Linux" (AIX will be detected automatically)
+5. **Platform**: no selection needed, AIX is detected automatically. To skip detection you can map the host in the `remote.SSH.remotePlatform` setting to `aix`.
 6. **Enter password** or use SSH key authentication
 
 ### First Connection Process:
