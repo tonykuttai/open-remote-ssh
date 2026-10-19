@@ -5,7 +5,19 @@
 [tonykuttai/vscodium-aix-server](https://github.com/tonykuttai/vscodium-aix-server) and is installed
 automatically on first connection. Everything else works as in open-remote-ssh.
 
-Built and tested on AIX 7.3.
+## Supported remote platforms
+
+- **AIX 7.x (ppc64)**, built and tested on AIX 7.3, see below
+- x86_64 Debian 8+, Ubuntu 16.04+, CentOS / RHEL 7+ Linux
+- ARMv7l (AArch32) Raspbian Stretch/9+ (32-bit)
+- ARMv8l (AArch64) Ubuntu 18.04+ (64-bit)
+- ppc64le, s390x, riscv64 and loong64 Linux
+- Alpine Linux (`apk add bash libstdc++` on the host)
+- macOS 10.14+ (Mojave)
+- Windows 10+
+- FreeBSD 13 and DragonFlyBSD (manual remote-extension-host installation)
+
+On platforms other than AIX the server is downloaded from the VSCodium releases, exactly as open-remote-ssh does.
 
 ## AIX host requirements
 
