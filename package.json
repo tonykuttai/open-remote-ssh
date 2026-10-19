@@ -2,7 +2,7 @@
 	"name": "aix-remote-ssh",
 	"displayName": "AIX Remote - SSH",
 	"description": "Use any remote machine with a SSH server as your development environment.",
-	"version": "0.0.61",
+	"version": "0.0.63",
 	"publisher": "tonykuttai",
 	"author": {
     "name": "Tony Varghese",
@@ -37,6 +37,7 @@
 	],
 	"api": "none",
 	"activationEvents": [
+		"onStartupFinished",
 		"onCommand:openremotessh.openEmptyWindow",
 		"onCommand:openremotessh.openEmptyWindowInCurrentWindow",
 		"onCommand:openremotessh.openConfigFile",

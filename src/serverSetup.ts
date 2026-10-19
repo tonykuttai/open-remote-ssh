@@ -173,12 +173,13 @@ export async function installCodeServer(conn: SSHConnection, serverDownloadUrlTe
 
         commandOutput = await conn.execPartial(command, (stdout: string) => endRegex.test(stdout));
     } else {
+        const bashPath = await findRemoteBash(conn, logger);
         const installServerScript = generateBashInstallScript(installOptions);
 
         logger.trace('Server install command:', installServerScript);
         // Fish shell does not support heredoc so let's workaround it using -c option,
         // also replace single quotes (') within the script with ('\'') as there's no quoting within single quotes, see https://unix.stackexchange.com/a/24676
-        commandOutput = await conn.exec(`bash -c '${installServerScript.replace(/'/g, `'\\''`)}'`);
+        commandOutput = await conn.exec(`${bashPath} -c '${installServerScript.replace(/'/g, `'\\''`)}'`);
     }
 
     if (commandOutput.stderr) {
@@ -193,7 +194,10 @@ export async function installCodeServer(conn: SSHConnection, serverDownloadUrlTe
 
     const exitCode = parseInt(resultMap.exitCode, 10);
     if (exitCode !== 0) {
-        throw new ServerInstallError(`Couldn't install vscode server on remote server, install script returned non-zero exit status`);
+        const reason = resultMap.installError?.trim();
+        throw new ServerInstallError(reason
+            ? `Couldn't install vscode server on remote host: ${reason}`
+            : `Couldn't install vscode server on remote server, install script returned non-zero exit status`);
     }
 
     const listeningOn = resultMap.listeningOn.match(/^\d+$/)
@@ -213,6 +217,37 @@ export async function installCodeServer(conn: SSHConnection, serverDownloadUrlTe
         tmpDir: resultMap.tmpDir,
         ...remoteEnvVars
     };
+}
+
+/**
+ * The install script is a bash script. The remote login shell (ksh on AIX, fish, csh, ...)
+ * may not have bash on PATH, so resolve it through a POSIX sh first and fail with a clear
+ * message instead of an unparsable install output when it is missing.
+ */
+async function findRemoteBash(conn: SSHConnection, logger: Log): Promise<string> {
+    // /bin/sh by absolute path and the standard directories appended: a remote whose
+    // non-interactive PATH is broken (e.g. an unexpanded "$PATH" in /etc/environment)
+    // must still be able to run the install script.
+    const probe = `/bin/sh -c 'PATH=/opt/freeware/bin:/usr/local/bin:$PATH:/usr/bin:/bin; command -v bash'`;
+    let result: { stdout: string; stderr: string };
+    try {
+        result = await conn.exec(probe);
+    } catch (e) {
+        logger.trace('bash probe failed, falling back to "bash" on PATH', e);
+        return 'bash';
+    }
+
+    const bashPath = result.stdout.trim().split(/\r?\n/).filter(l => l.startsWith('/')).pop();
+    if (!bashPath) {
+        logger.trace(`bash probe output: stdout=${JSON.stringify(result.stdout)} stderr=${JSON.stringify(result.stderr)}`);
+        throw new ServerInstallError(
+            'bash was not found on the remote host (searched PATH, /opt/freeware/bin, /usr/local/bin, /usr/bin and /bin). ' +
+            'The server install script requires bash. On AIX install it from the AIX Toolbox for Open Source: dnf install bash'
+        );
+    }
+
+    logger.trace(`Using remote bash: ${bashPath}`);
+    return bashPath;
 }
 
 function parseServerInstallOutput(str: string, scriptId: string): { [k: string]: string } | undefined {
@@ -242,7 +277,7 @@ function parseServerInstallOutput(str: string, scriptId: string): { [k: string]:
 }
 
 // Simplified AIX installation - uses pre-built server directly
-function generateBashInstallScript({
+export function generateBashInstallScript({
     id,
     quality,
     version,
@@ -261,6 +296,10 @@ function generateBashInstallScript({
 
     return `
 # Server installation script
+
+# Make sure the standard tools are reachable even if the remote's non-interactive
+# PATH is broken; the install script needs uname, mkdir, tar, ps, grep, ...
+export PATH="$PATH:/usr/bin:/bin:/usr/sbin:/sbin"
 
 TMP_DIR="\${XDG_RUNTIME_DIR:-"/tmp"}"
 
@@ -282,6 +321,8 @@ SERVER_TOKENFILE="$SERVER_DATA_DIR/.$DISTRO_COMMIT.token"
 SERVER_ARCH=
 SERVER_CONNECTION_TOKEN=
 SERVER_DOWNLOAD_URL=
+INSTALL_ERROR=
+TAR_MODE=
 
 LISTENING_ON=
 OS_RELEASE_ID=
@@ -292,6 +333,7 @@ PLATFORM=
 print_install_results_and_exit() {
     echo "${id}: start"
     echo "exitCode==$1=="
+    echo "installError==$INSTALL_ERROR=="
     echo "listeningOn==$LISTENING_ON=="
     echo "connectionToken==$SERVER_CONNECTION_TOKEN=="
     echo "logFile==$SERVER_LOGFILE=="
@@ -302,6 +344,14 @@ print_install_results_and_exit() {
     ${envVariables.map(envVar => `echo "${envVar}==$${envVar}=="`).join('\n')}
     echo "${id}: end"
     exit 0
+}
+
+# Report a fatal install problem. The message is echoed for the log and also
+# returned to the extension so it can be shown to the user verbatim.
+fail_install() {
+    INSTALL_ERROR="$1"
+    echo "Error: $1"
+    print_install_results_and_exit 1
 }
 
 # Check if platform is supported
@@ -323,8 +373,7 @@ case $KERNEL in
         PLATFORM="aix"
         ;;
     *)
-        echo "Error platform not supported: $KERNEL"
-        print_install_results_and_exit 1
+        fail_install "Platform not supported: $KERNEL"
         ;;
 esac
 
@@ -365,13 +414,11 @@ case $ARCH in
                     ARCH="ppc64"
                     ;;
                 *)
-                    echo "Error AIX architecture not supported: $AIX_ARCH"
-                    print_install_results_and_exit 1
+                    fail_install "AIX architecture not supported: $AIX_ARCH"
                     ;;
             esac
         else
-            echo "Error architecture not supported: $ARCH"
-            print_install_results_and_exit 1
+            fail_install "Architecture not supported: $ARCH"
         fi
         ;;
 esac
@@ -379,6 +426,49 @@ esac
 # Add freeware path for AIX
 if [[ $PLATFORM == "aix" ]]; then
     export PATH="/opt/freeware/bin:$PATH"
+fi
+
+# AIX preflight. The server package bundles its own Node.js, so the host only
+# needs the tools to download, unpack and run it. Fail here, with the reason,
+# instead of later with an obscure error.
+if [[ $PLATFORM == "aix" ]]; then
+    PREFLIGHT_MISSING=
+
+    if [[ -z $(command -v wget) && -z $(command -v curl) ]]; then
+        PREFLIGHT_MISSING="$PREFLIGHT_MISSING wget-or-curl"
+    fi
+
+    # AIX native tar has no -z and no --strip-components. Prefer GNU tar from
+    # the Toolbox, otherwise fall back to gzip -dc | tar -xf - with a staging dir.
+    if tar --version 2>/dev/null | grep -q GNU; then
+        TAR_MODE="gnu"
+    elif [[ -n $(command -v gzip) && -n $(command -v tar) ]]; then
+        TAR_MODE="pipe"
+    else
+        PREFLIGHT_MISSING="$PREFLIGHT_MISSING tar+gzip"
+    fi
+
+    # The bundled node and its native addons need the GCC C++ runtime
+    # (libstdc++ / libgcc_s). bin/aix-env.sh looks in these places, or in
+    # VSCODIUM_AIX_GCC_LIBPATH when set.
+    GCC_RUNTIME_FOUND=
+    for lib in "$VSCODIUM_AIX_GCC_LIBPATH"/libstdc++* /opt/freeware/lib/libstdc++.so.6 /opt/freeware/lib/libstdc++.a /opt/freeware/lib/gcc/*/*/libstdc++* /usr/local/lib/libstdc++.so.6 /usr/local/lib/libstdc++.a; do
+        if [[ -e $lib ]]; then
+            GCC_RUNTIME_FOUND=1
+            break
+        fi
+    done
+    if [[ -z $GCC_RUNTIME_FOUND ]]; then
+        PREFLIGHT_MISSING="$PREFLIGHT_MISSING libstdc++"
+    fi
+
+    if [[ ! -d $HOME || ! -w $HOME ]]; then
+        fail_install "Home directory $HOME is not writable. The server is installed under $SERVER_DATA_DIR"
+    fi
+
+    if [[ -n $PREFLIGHT_MISSING ]]; then
+        fail_install "AIX host is missing required tools:$PREFLIGHT_MISSING. Install them from the AIX Toolbox for Open Source (dnf install bash tar gzip wget libstdc++ libgcc), then reconnect"
+    fi
 fi
 
 # Handle OS release detection
@@ -398,8 +488,7 @@ fi
 if [[ ! -d $SERVER_DIR ]]; then
     mkdir -p $SERVER_DIR
     if (( $? > 0 )); then
-        echo "Error creating server install directory"
-        print_install_results_and_exit 1
+        fail_install "Failed creating server install directory $SERVER_DIR"
     fi
 fi
 
@@ -412,9 +501,6 @@ fi
 if [[ $PLATFORM == "aix" ]]; then
     # For AIX, use the VSCodium build version (e.g. 1.105.17075), not the upstream VS Code version (1.105.1)
     SERVER_DOWNLOAD_URL="https://github.com/tonykuttai/vscodium-aix-server/releases/download/$DISTRO_BUILD_VERSION/vscodium-reh-aix-ppc64-$DISTRO_BUILD_VERSION.tar.gz"
-
-    echo "Downloading VSCodium server for AIX from GitHub..."
-    echo "URL: $SERVER_DOWNLOAD_URL"
 else
     # Original VSCodium/VSCODE URL for other platforms
     SERVER_DOWNLOAD_URL="$(echo "${serverDownloadUrlTemplate.replace(/\$\{/g, '\\${')}" \
@@ -432,76 +518,91 @@ if [[ ! -f $SERVER_SCRIPT ]]; then
         darwin | linux | alpine | aix )
             ;;
         *)
-            echo "Error '$PLATFORM' needs manual installation of remote extension host"
-            print_install_results_and_exit 1
+            fail_install "'$PLATFORM' needs manual installation of remote extension host"
             ;;
     esac
 
     pushd $SERVER_DIR > /dev/null || {
-        echo "Error: Failed to enter server directory $SERVER_DIR"
-        print_install_results_and_exit 1
+        fail_install "Failed to enter server directory $SERVER_DIR"
     }
 
-    # Standard download logic for all platforms including AIX
+    if [[ $PLATFORM == "aix" ]]; then
+        # Package is ~100 MB and unpacks to ~330 MB (node is bundled).
+        FREE_KB="$(df -Pk "$SERVER_DATA_DIR" 2>/dev/null | awk 'NR==2 {print $4}')"
+        if [[ $FREE_KB =~ ^[0-9]+$ && $FREE_KB -lt 460800 ]]; then
+            fail_install "Not enough free space under $SERVER_DATA_DIR: $((FREE_KB / 1024)) MB available, about 450 MB needed"
+        fi
+    fi
+
+    echo "Downloading server from $SERVER_DOWNLOAD_URL"
     if [[ ! -z $(which wget) ]]; then
         wget --tries=3 --timeout=10 --continue --no-verbose -O vscode-server.tar.gz $SERVER_DOWNLOAD_URL
     elif [[ ! -z $(which curl) ]]; then
         curl --retry 3 --connect-timeout 10 --location --show-error --silent --output vscode-server.tar.gz $SERVER_DOWNLOAD_URL
     else
-        echo "Error no tool to download server binary"
-        print_install_results_and_exit 1
+        fail_install "No tool to download server binary"
     fi
 
     if (( $? > 0 )); then
-        echo "Error downloading server from $SERVER_DOWNLOAD_URL"
-        print_install_results_and_exit 1
+        rm -f vscode-server.tar.gz
+        fail_install "Failed downloading server from $SERVER_DOWNLOAD_URL"
     fi
 
     echo "Extracting server package..."
-    if ! tar -xzf vscode-server.tar.gz --strip-components 1; then
-        echo "Error while extracting server contents"
-        print_install_results_and_exit 1
+    if [[ $TAR_MODE == "pipe" ]]; then
+        # Native AIX tar: unpack via gzip into a staging directory, then move
+        # the single top-level directory's contents up (no --strip-components).
+        rm -rf "$SERVER_DIR/.extract"
+        mkdir -p "$SERVER_DIR/.extract"
+        if ! ( gzip -dc vscode-server.tar.gz | ( cd "$SERVER_DIR/.extract" && tar -xf - ) ); then
+            fail_install "Failed extracting the server package with gzip and tar. Installing GNU tar from the AIX Toolbox (dnf install tar) is recommended"
+        fi
+        EXTRACT_TOP="$(ls -d "$SERVER_DIR"/.extract/*/ 2>/dev/null | head -1)"
+        if [[ -z $EXTRACT_TOP ]]; then
+            fail_install "Server package has an unexpected layout (no top-level directory)"
+        fi
+        shopt -s dotglob
+        mv "$EXTRACT_TOP"* "$SERVER_DIR"/
+        shopt -u dotglob
+        rm -rf "$SERVER_DIR/.extract"
+    elif ! tar -xzf vscode-server.tar.gz --strip-components 1; then
+        fail_install "Failed extracting the server package with tar -xzf"
     fi
 
-    if (( $? > 0 )); then
-        echo "Error while extracting server contents"
-        print_install_results_and_exit 1
-    fi
-
-    # Special handling for AIX server wrapper
     if [[ $PLATFORM == "aix" ]]; then
-        # Ensure the AIX server wrapper is executable
-        if [[ -f "$SERVER_DIR/bin/codium-server" ]]; then
-            chmod +x "$SERVER_DIR/bin/codium-server"
-            echo "AIX server wrapper made executable"
+        chmod +x "$SERVER_DIR/bin/codium-server" "$SERVER_DIR/bin/remote-cli/codium" "$SERVER_DIR/node" 2>/dev/null
 
-            # Create symlink if VS Code expects code-server but we have codium-server
-            if [[ "$SERVER_APP_NAME" == "code-server" && ! -f "$SERVER_DIR/bin/code-server" ]]; then
-                ln -sf "$SERVER_DIR/bin/codium-server" "$SERVER_DIR/bin/code-server"
-                echo "Created symlink: code-server -> codium-server"
-            fi
-        fi
-        
-        # Verify Node.js is available for AIX
-        if [[ ! -x "/opt/nodejs/bin/node" ]]; then
-            echo "Warning: Node.js not found at /opt/nodejs/bin/node"
-            echo "AIX server may not start properly"
-        else
-            echo "Node.js found at /opt/nodejs/bin/node"
-            /opt/nodejs/bin/node --version
+        # The AIX package ships codium-server; link it if the client expects another name
+        if [[ "$SERVER_APP_NAME" != "codium-server" && -f "$SERVER_DIR/bin/codium-server" && ! -f "$SERVER_SCRIPT" ]]; then
+            ln -sf "$SERVER_DIR/bin/codium-server" "$SERVER_SCRIPT"
+            echo "Created symlink: $SERVER_APP_NAME -> codium-server"
         fi
 
-BASHRC="$HOME/.bashrc"
-SNIPPET_MARKER="# === VSCodium remote-cli PATH setup ==="
+        if [[ ! -f $SERVER_SCRIPT ]]; then
+            fail_install "Server package is incomplete: $SERVER_SCRIPT not found after extraction"
+        fi
 
-# Create .bashrc if it doesn't exist
-if [ ! -f "$BASHRC" ]; then
-  touch "$BASHRC"
-fi
+        # The package bundles node; prove it actually runs on this host before
+        # going any further (missing libstdc++, wrong LIBPATH, bad binary, ...).
+        echo "Verifying the server runs on this host..."
+        SERVER_VERSION_OUTPUT="$("$SERVER_SCRIPT" --version 2>&1)"
+        SERVER_VERSION_STATUS=$?
+        if [[ $SERVER_VERSION_STATUS -ne 0 ]]; then
+            fail_install "Server does not run on this host ($SERVER_SCRIPT --version exited with $SERVER_VERSION_STATUS): $(echo "$SERVER_VERSION_OUTPUT" | head -5 | tr '\\n' ' ')"
+        fi
+        echo "$SERVER_VERSION_OUTPUT"
+        if ! echo "$SERVER_VERSION_OUTPUT" | grep -q "$DISTRO_COMMIT"; then
+            echo "Warning: server commit does not match the client commit $DISTRO_COMMIT; the connection may fail"
+        fi
 
-# Add snippet only if it's not already present
-if ! grep -Fq "$SNIPPET_MARKER" "$BASHRC"; then
-  cat >> "$BASHRC" <<'EOF'
+        # Put the remote CLI (codium) on PATH for interactive bash shells
+        BASHRC="$HOME/.bashrc"
+        SNIPPET_MARKER="# === VSCodium remote-cli PATH setup ==="
+        if [[ ! -f $BASHRC ]]; then
+            touch "$BASHRC"
+        fi
+        if ! grep -Fq "$SNIPPET_MARKER" "$BASHRC"; then
+            cat >> "$BASHRC" <<'EOF'
 
 # === VSCodium remote-cli PATH setup ===
 # Add all matching remote-cli directories to PATH
@@ -516,15 +617,12 @@ fi
 # === End VSCodium remote-cli PATH setup ===
 
 EOF
-  echo "remote-cli PATH snippet added to $BASHRC"
-else
-  echo "Snippet already present in $BASHRC, not adding again."
-fi
+            echo "remote-cli PATH snippet added to $BASHRC"
+        fi
     fi
 
     if [[ ! -f $SERVER_SCRIPT ]]; then
-        echo "Error server contents are corrupted"
-        print_install_results_and_exit 1
+        fail_install "Server contents are corrupted"
     fi
 
     rm -f vscode-server.tar.gz
@@ -564,8 +662,7 @@ fi
 if [[ -f $SERVER_TOKENFILE ]]; then
     SERVER_CONNECTION_TOKEN="$(cat $SERVER_TOKENFILE)"
 else
-    echo "Error server token file not found $SERVER_TOKENFILE"
-    print_install_results_and_exit 1
+    fail_install "Server token file not found $SERVER_TOKENFILE"
 fi
 
 if [[ -f $SERVER_LOGFILE ]]; then
@@ -578,12 +675,10 @@ if [[ -f $SERVER_LOGFILE ]]; then
     done
 
     if [[ -z $LISTENING_ON ]]; then
-        echo "Error server did not start successfully"
-        print_install_results_and_exit 1
+        fail_install "Server did not start successfully. Last log lines: $(tail -5 $SERVER_LOGFILE | tr '\\n' ' ')"
     fi
 else
-    echo "Error server log file not found $SERVER_LOGFILE"
-    print_install_results_and_exit 1
+    fail_install "Server log file not found $SERVER_LOGFILE"
 fi
 
 # Finish server setup
@@ -807,7 +902,9 @@ function extractBuildVersionFromTemplate(
 async function getLatestAIXServerVersion(): Promise<string | null> {
     try {
         const response = await fetch('https://api.github.com/repos/tonykuttai/vscodium-aix-server/releases/latest');
-        if (!response.ok) return null;
+        if (!response.ok) {
+            return null;
+        }
         
         const data = await response.json();
         return data.tag_name; // e.g., "1.106.27818"

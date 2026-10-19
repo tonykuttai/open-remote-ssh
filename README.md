@@ -14,7 +14,7 @@ You can connect to a running SSH server on the following platforms.
 - Windows 10+
 - FreeBSD 13 (Requires manual remote-extension-host installation)
 - DragonFlyBSD (Requires manual remote-extension-host installation)
-- **AIX 7.1+** (Requires manual setup - see AIX Support section below)
+- **AIX (ppc64)**, built and tested on AIX 7.3 - see the AIX section below
 
 ## Requirements
 
@@ -28,33 +28,28 @@ sudo apk add bash libstdc++
 
 **AIX**
 
-Requirements for AIX hosts:
+The AIX server package (from [tonykuttai/vscodium-aix-server](https://github.com/tonykuttai/vscodium-aix-server))
+bundles its own Node.js runtime, so **Node.js does not need to be installed on the AIX host**.
+The extension checks the following before downloading anything and shows exactly what is missing:
 
-- AIX 7.1 or later
-- Node.js 16+ installed on the remote AIX system
-- GNU bash (AIX ksh may cause issues)
-- Sufficient permissions to write to the user's home directory
+- `bash` (GNU bash; the AIX default `ksh` is not enough)
+- GNU `tar`, or `gzip` plus the native AIX `tar` (AIX `tar` cannot read `.tar.gz` on its own)
+- `wget` or `curl`
+- The GCC C++ runtime from the AIX Toolbox: `libstdc++` and `libgcc` (under `/opt/freeware/lib`)
+- A writable home directory with about 500 MB free (the server unpacks to roughly 330 MB)
+
+All of these come from the [AIX Toolbox for Open Source Software](https://www.ibm.com/support/pages/aix-toolbox-open-source-software-overview):
+```bash
+dnf install bash tar gzip wget libstdc++ libgcc
+```
+No root access is needed to use the extension itself: the server is installed under `~/.vscodium-server`.
+
+After extraction the extension runs `codium-server --version` on the host. If that fails, the connection
+error dialog shows the output so the cause (for example a missing `libstdc++`) is visible immediately.
 
 Known Limitations:
-- Some VS Code extensions that rely on native binaries may not function (like watcher)
-
-Setup Instructions:
-
-- Install Node.js on AIX:
-```
-# Download and install Node.js for AIX
-# Visit https://nodejs.org/en/download/ for AIX packages
-# Or use package managers like yum if available
-```
-
-- Ensure bash is available:
-```
-# Check if bash is installed
-which bash
-
-# If not available, install GNU bash
-# This may require installing from AIX Toolbox or building from source
-```
+- File watching uses polling (no native file events on AIX), so very large workspaces may be slower.
+- Some VS Code extensions that ship their own native binaries will not work on AIX.
 ---
 
 ## Installation
@@ -64,14 +59,29 @@ Installation Steps
 2. Go to Extensions view.
 3. Search for `AIX Remote - SSH` or `tonykuttai.aix-remote-ssh`
 4. Install the extension
-5. Install shell command in PATH: Open Command Palette and run Shell Command: Install `codium` command in `PATH`. Close VSCodium.
-6. Always start VSCodium with the following flags to enable proposed API on your Host terminal:
+5. Enable the proposed API the extension needs (see [Enabling the proposed API](#enabling-the-proposed-api)) and restart VSCodium.
 
-`codium --enable-proposed-api tonykuttai.aix-remote-ssh`
 
-## Open VScodium 
+## Enabling the proposed API
 
-Always start VSCodium with the following flags to enable proposed API on your Host terminal:
+Like upstream open-remote-ssh, this extension uses the `resolvers` and `contribViewsRemote` API proposals,
+which VSCodium only enables for the extension ids listed in its `product.json`. Until `tonykuttai.aix-remote-ssh`
+is on that list, enable it once in `argv.json`, the runtime arguments file that VSCodium reads at startup:
+
+1. Open the Command Palette and run **Preferences: Configure Runtime Arguments**.
+2. Add the extension id and save:
+   ```jsonc
+   {
+       "enable-proposed-api": ["tonykuttai.aix-remote-ssh"]
+   }
+   ```
+3. Restart VSCodium.
+
+If the proposal is not enabled, the extension shows an error dialog shortly after VSCodium starts, with an
+**Open argv.json** button that takes you to step 2. If you already have an `"enable-proposed-api"` entry for
+another extension (for example `jeanp413.open-remote-ssh`), add `tonykuttai.aix-remote-ssh` to that list.
+
+Alternatively, start VSCodium from a terminal with the flag every time:
 
 `codium --enable-proposed-api tonykuttai.aix-remote-ssh`
 
@@ -96,8 +106,8 @@ Complete instructions for installing and using the AIX-compatible Remote SSH ext
 
 ### On Your AIX Server:
 - **SSH server** running (`sshd`)
-- **Node.js 16+** installed at `/opt/nodejs/bin/node`
-- **User account** with appropriate permissions
+- **AIX Toolbox packages** listed under [Requirements](#requirements) (`bash`, `tar`, `gzip`, `wget` or `curl`, `libstdc++`, `libgcc`)
+- **User account** with a writable home directory
 
 ## Configure SSH Connection
 
@@ -148,8 +158,8 @@ Host aix-server
 ### First Connection Process:
 1. **Extension will detect AIX** and start server installation
 2. **VSCodium server will be downloaded** and installed automatically
-3. **AIX compatibility patches** will be applied
-4. **Wait for installation** to complete (may take 2-5 minutes on first connection)
+3. **Server self-check** runs (`codium-server --version`) to confirm it works on the host
+4. **Wait for installation** to complete (the package is about 100 MB; a minute or two on first connection)
 5. **Connection established** - you'll see "SSH: hostname" in the bottom-left corner
 
 ## Verify Installation
@@ -200,7 +210,7 @@ Host aix-server
 
 When reporting issues, include:
 1. **AIX version**: `oslevel -s`
-2. **Node.js version**: `/opt/nodejs/bin/node --version`
+2. **Server self-check**: `~/.vscodium-server/bin/<commit>/bin/codium-server --version`
 3. **VSCodium version**: Help → About
 4. **Extension version**: Extensions panel
 5. **Error logs**: From locations listed above
@@ -219,11 +229,13 @@ When reporting issues, include:
 ### Q: How do I update the extension?
 **A:** Download the new `.vsix` file and install it using the same process. VSCodium will update the existing installation.
 
-### Q: What if my AIX server uses a different Node.js path?
-**A:** You can modify the server installation script or create a symlink:
-```bash
-sudo ln -s /your/nodejs/path/node /opt/nodejs/bin/node
-```
+### Q: Do I need Node.js on the AIX host?
+**A:** No. Since server release 1.135.06055 every package bundles the Node.js build it was tested with
+(`~/.vscodium-server/bin/<commit>/node`). Nothing outside the Toolbox packages listed under Requirements is used.
+
+### Q: The connection fails with "AIX host is missing required tools"
+**A:** The message lists what is missing. Install it from the AIX Toolbox (`dnf install bash tar gzip wget libstdc++ libgcc`) and reconnect.
+If you cannot install packages system-wide, GNU bash and tar placed anywhere on your `PATH` also work.
 
 ---
 

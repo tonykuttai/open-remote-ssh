@@ -10,8 +10,16 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(logger);
 
     const remoteSSHResolver = new RemoteSSHResolver(context, logger);
-    context.subscriptions.push(vscode.workspace.registerRemoteAuthorityResolver(REMOTE_SSH_AUTHORITY, remoteSSHResolver));
-    context.subscriptions.push(remoteSSHResolver);
+    try {
+        context.subscriptions.push(vscode.workspace.registerRemoteAuthorityResolver(REMOTE_SSH_AUTHORITY, remoteSSHResolver));
+        context.subscriptions.push(remoteSSHResolver);
+    } catch (e) {
+        // The 'resolvers' API proposal is not enabled for this extension id. Without it the
+        // extension cannot resolve ssh-remote authorities at all, so explain how to enable it
+        // and keep the rest of the activation (commands, log) usable.
+        logger.error('Failed to register the remote authority resolver', e);
+        void showProposedApiInstructions(context, logger);
+    }
 
     const locationHistory = new RemoteLocationHistory(context);
     const locationData = getRemoteWorkspaceLocationData();
@@ -27,6 +35,22 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand('openremotessh.openEmptyWindowInCurrentWindow', () => promptOpenRemoteSSHWindow(true)));
     context.subscriptions.push(vscode.commands.registerCommand('openremotessh.openConfigFile', () => openSSHConfigFile()));
     context.subscriptions.push(vscode.commands.registerCommand('openremotessh.showLog', () => logger.show()));
+}
+
+async function showProposedApiInstructions(context: vscode.ExtensionContext, logger: Log) {
+    const extensionId = context.extension.id;
+    const openArgv = 'Open argv.json';
+    const showLog = 'Show Log';
+    const choice = await vscode.window.showErrorMessage(
+        `${extensionId} needs the 'resolvers' API proposal, which is not enabled. Add the extension to "enable-proposed-api" in argv.json and restart, or start with --enable-proposed-api ${extensionId}.`,
+        { detail: `In argv.json add:\n  "enable-proposed-api": ["${extensionId}"]` },
+        openArgv, showLog
+    );
+    if (choice === openArgv) {
+        await vscode.commands.executeCommand('workbench.action.configureRuntimeArguments');
+    } else if (choice === showLog) {
+        logger.show();
+    }
 }
 
 export function deactivate() {
