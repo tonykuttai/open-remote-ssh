@@ -19,3 +19,4 @@ eslint.config.mjs
 README-AIX.md
 tsconfig.tsbuildinfo
 publish.sh
+**/*.tsbuildinfo
