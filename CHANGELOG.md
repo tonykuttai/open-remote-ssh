@@ -1,3 +1,9 @@
+## 0.1.1
+
+- feat(aix): reinstall the server when the AIX server repo has republished a newer build under the same
+  tag and commit (compares the release manifest's `built` with the installed `aix-build-manifest.json`);
+  the running old server is stopped first
+
 ## 0.1.0
 
 - remodel: rebuilt on upstream open-remote-ssh 0.4.0 (previously based on 0.0.48). Brings upstream's

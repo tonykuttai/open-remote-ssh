@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { aixDownloadUrlTemplate, detectPlatform, parseKernelName, parseMachineArch, ServerInstallError } from '../src/serverSetup';
+import { aixDownloadUrlTemplate, aixReleaseManifestUrl, detectPlatform, parseKernelName, parseMachineArch, ServerInstallError } from '../src/serverSetup';
 
 type ExecResult = { stdout: string; stderr: string };
 
@@ -233,5 +233,19 @@ describe('aixDownloadUrlTemplate', () => {
     it('falls back to version + release when product.json has no usable version', () => {
         expect(aixDownloadUrlTemplate({ version: '1.140.0', buildVersion: undefined, release: '6880' }))
             .to.eql('https://github.com/tonykuttai/vscodium-aix-server/releases/download/1.140.06880/vscodium-reh-${os}-${arch}-1.140.06880.tar.gz');
+    });
+});
+
+describe('aixReleaseManifestUrl', () => {
+    const vars = { os: 'aix', arch: 'ppc64', version: '1.140.0', release: '6880', quality: 'stable', commit: 'abc' };
+
+    it('points at the .json manifest next to the tarball', () => {
+        expect(aixReleaseManifestUrl(aixDownloadUrlTemplate({ version: '1.140.0', buildVersion: '1.140.06880', release: '' }), vars))
+            .to.eql('https://github.com/tonykuttai/vscodium-aix-server/releases/download/1.140.06880/vscodium-reh-aix-ppc64-1.140.06880.json');
+    });
+
+    it('resolves user template variables first', () => {
+        expect(aixReleaseManifestUrl('https://mirror/x/${version}${release}/reh-${os}-${arch}-${version}${release}.tar.gz', vars))
+            .to.eql('https://mirror/x/1.140.06880/reh-aix-ppc64-1.140.06880.json');
     });
 });

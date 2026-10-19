@@ -94,6 +94,9 @@ export type ServerInstallOptions = {
     serverValidation: ServerValidation;
     serverPlatform: Platform;
     serverArch: Architecture;
+    // AIX: `built` of the published release manifest; a newer value than the installed
+    // aix-build-manifest.json triggers a reinstall (same tag and commit, rebuilt package).
+    aixReleaseBuilt?: string;
 };
 
 export type ServerInstallResult = {
@@ -118,6 +121,40 @@ const DEFAULT_DOWNLOAD_URL_TEMPLATE = 'https://github.com/VSCodium/vscodium/rele
 // VSCodium does not publish an AIX server; tonykuttai/vscodium-aix-server builds one per VSCodium release
 // (tag == VSCodium version, Node.js bundled). A user-provided remote.SSH.serverDownloadUrlTemplate still wins.
 export const AIX_DOWNLOAD_URL_TEMPLATE = 'https://github.com/tonykuttai/vscodium-aix-server/releases/download/${version}${release}/vscodium-reh-${os}-${arch}-${version}${release}.tar.gz';
+
+/**
+ * Resolve the download URL variables the install script would substitute, then point at the
+ * release manifest (`.json`) that the AIX server pipeline publishes next to the tarball.
+ */
+export function aixReleaseManifestUrl(template: string, vars: { os: string; arch: string; version: string; release: string; quality: string; commit: string }): string {
+    const url = template
+        .replace(/\$\{os\}/g, vars.os)
+        .replace(/\$\{arch\}/g, vars.arch)
+        .replace(/\$\{version\}/g, vars.version)
+        .replace(/\$\{release\}/g, vars.release)
+        .replace(/\$\{quality\}/g, vars.quality)
+        .replace(/\$\{commit\}/g, vars.commit);
+    return url.replace(/\.tar\.gz$/, '.json');
+}
+
+async function fetchAixReleaseBuilt(url: string, logger: Log): Promise<string> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    try {
+        const response = await fetch(url, { signal: controller.signal, redirect: 'follow' });
+        if (!response.ok) {
+            logger.trace(`AIX release manifest ${url}: HTTP ${response.status}`);
+            return '';
+        }
+        const data = await response.json() as { built?: unknown };
+        return typeof data.built === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(data.built) ? data.built : '';
+    } catch (e) {
+        logger.trace(`AIX release manifest ${url} not available`, e);
+        return '';
+    } finally {
+        clearTimeout(timer);
+    }
+}
 
 /**
  * AIX server releases are tagged with the VSCodium build version (1.140.06880). vscode.version only
@@ -275,6 +312,16 @@ export async function installCodeServer(
         || DEFAULT_DOWNLOAD_URL_TEMPLATE;
     const bestRelease: IRelease = await fetchRelease(serverDownloadUrlTemplateFinal, vscodeServerConfig.version, vscodeServerConfig.release, serverVersion, logger);
 
+    let aixReleaseBuilt = '';
+    if (detectedPlatform === 'aix') {
+        const manifestUrl = aixReleaseManifestUrl(serverDownloadUrlTemplateFinal, {
+            os: 'aix', arch: detectedArch, version: bestRelease.version, release: bestRelease.build,
+            quality: vscodeServerConfig.quality, commit: vscodeServerConfig.commit,
+        });
+        aixReleaseBuilt = await fetchAixReleaseBuilt(manifestUrl, logger);
+        logger.trace(`AIX server published build: ${aixReleaseBuilt || 'unknown'}`);
+    }
+
     const installOptions: ServerInstallOptions = {
         id: scriptId,
         version: bestRelease.version,
@@ -292,6 +339,7 @@ export async function installCodeServer(
         serverValidation: vscodeServerConfig.serverValidation,
         serverPlatform: detectedPlatform,
         serverArch: detectedArch,
+        aixReleaseBuilt,
     };
 
     const commandOutput = await runInstallScript(conn, detectedPlatform, shell, installOptions, vscodeServerConfig, scriptId, logger, extensionPath);
@@ -444,7 +492,7 @@ function parseServerInstallOutput(str: string, scriptId: string): { [k: string]:
     return resultMap;
 }
 
-function generateBashInstallScript({ id, quality, version, commit, release, extensionIds, envVariables, sendEnvVars, useSocketPath, serverApplicationName, serverDataFolderName, serverDownloadUrlTemplate, customInstallPath, serverValidation, serverPlatform, serverArch }: ServerInstallOptions, extensionPath: string): string {
+function generateBashInstallScript({ id, quality, version, commit, release, extensionIds, envVariables, sendEnvVars, useSocketPath, serverApplicationName, serverDataFolderName, serverDownloadUrlTemplate, customInstallPath, serverValidation, serverPlatform, serverArch, aixReleaseBuilt }: ServerInstallOptions, extensionPath: string): string {
     const extensions = extensionIds.map(extId => '--install-extension ' + extId).join(' ');
     const serverDataDir = customInstallPath
         ? customInstallPath.replace(/^~(?=\/|$)/, '$HOME')
@@ -474,6 +522,7 @@ function generateBashInstallScript({ id, quality, version, commit, release, exte
         SERVER_CONNECTION_TOKEN: crypto.randomUUID(),
         SERVER_PLATFORM: serverPlatform,
         SERVER_ARCH: serverArch,
+        AIX_RELEASE_BUILT: aixReleaseBuilt ?? '',
     }, extensionPath);
 }
 
