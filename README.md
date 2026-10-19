@@ -61,5 +61,5 @@ The extension checks these before downloading anything and shows what is missing
 
 ## Limitations
 
-- File watching is polling based (no native file events on AIX).
+- Changes made to files outside the editor (for example by a build) are not detected automatically on AIX: the server's file watcher does not work there yet. Use Refresh in the Explorer, or reopen the file.
 - Extensions that ship their own native binaries will not run on AIX.
